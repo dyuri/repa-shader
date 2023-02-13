@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>&lt;repa-shader&gt; demo</title>
+  <script type="module" src="../src/repa-shader.js"></script>
+</head>
+<body>
+  <repa-shader>
+    <script type="x-shader/x-vertex">
+      attribute vec3 position;
+      void main() {
+        gl_Position = vec4(position, 1.0);
+      }
+    </script>
+    <script type="x-shader/x-fragment">
+      void main() {
+        outColor = vec4(1.0, 0.0, 0.0, 1.0);
+      }
+    </script>
+  </repa-shader>
+</body>
+</html>
