@@ -4,20 +4,54 @@
   <meta charset="UTF-8">
   <title>&lt;repa-shader&gt; demo</title>
   <script type="module" src="../src/repa-shader.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: repeating-linear-gradient(45deg, #333, #333 10px, #666 10px, #666 20px);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #fsinput {
+      width: 90vw;
+      height: 50vh;
+    }
+  </style>
 </head>
 <body>
-  <repa-shader>
-    <script type="x-shader/x-vertex">
-      attribute vec3 position;
-      void main() {
-        gl_Position = vec4(position, 1.0);
-      }
-    </script>
-    <script type="x-shader/x-fragment">
-      void main() {
-        outColor = vec4(1.0, 0.0, 0.0, 1.0);
-      }
-    </script>
+  <repa-shader fs-input="fsinput" alpha mouse>
+<script type="x-shader/x-vertex">
+attribute vec3 position;
+void main() {
+  gl_Position = vec4(position, 1.0);
+}
+</script>
+<script type="x-shader/x-fragment">
+void main() {
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+
+  float dist = distance(uv, mouse);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
+}
+</script>
   </repa-shader>
+  <div>
+    <textarea id="fsinput"></textarea>
+  </div>
+  <button id="update">Update</button>
+<script>
+const updateButton = document.getElementById('update');
+updateButton.addEventListener('click', () => {
+  const fsinput = document.getElementById('fsinput');
+  const shader = document.querySelector('repa-shader');
+  shader.render(fsinput.value);
+});
+</script>
 </body>
 </html>

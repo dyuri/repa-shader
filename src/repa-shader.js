@@ -30,18 +30,20 @@ void main() {
 `,
 };
 
-const DEMO = `
+const DEMO_FS = `
 precision highp float;
 uniform vec2 resolution;
 uniform vec2 mouse;
 uniform float time;
 out vec4 outColor;
-void main(){
-  vec2 r=resolution, p=(gl_FragCoord.xy*2.-r)/min(r.x,r.y)-mouse;
-  for (int i=0;i<8;++i) {
-    p.xy=abs(p)/abs(dot(p,p))-vec2(.9+cos(time*.2)*.4);
-  }
-  outColor=vec4(p.xxy,1);
+void main() {
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+
+  float dist = distance(uv, mouse);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
 }
 `;
 
@@ -61,7 +63,7 @@ class RepaShader extends HTMLElement {
     }
 
     if (!this._gl) {
-      const glopts = this._cfg.glopts || {alpha: true, preserveDrawingBuffer: true};
+      const glopts = this._cfg.glopts || {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
       this._gl = this._target.getContext('webgl2', glopts);
       if (!this._gl) {
         this.logger.error("WebGL2 not supported");
@@ -81,7 +83,7 @@ class RepaShader extends HTMLElement {
     this._gl.clearColor(0,0,0,1);
 
     // TODO remove
-    this.demo();
+    this.render(this.getFragmentShaderSource());
   }
 
   render(source, time) {
@@ -276,21 +278,22 @@ void main(){
     // - no `precision`, but has `main()` -> twigl geeker300es
     // - no `precision`, no `main()` -> twigl geekest300es
     // TODO: mrt
-    if (!this.mode) {
+    let mode = this.mode;
+    if (!mode) {
       const hasPrecision = this._fsSource.includes('precision');
       const hasMain = this._fsSource.includes('main()');
       if (hasPrecision) {
-        this.mode = 'classic';
+        mode = 'classic';
       } else if (hasMain) {
-        this.mode = 'geeker';
+        mode = 'geeker';
       } else {
-        this.mode = 'geekest';
+        mode = 'geekest';
       }
     }
 
     let start = '';
     let end = '';
-    switch (this.mode) {
+    switch (mode) {
       case 'classic':
         start = CHUNKS.es300;
         break;
@@ -306,8 +309,38 @@ void main(){
     return `${start}\n${this._fsSource}\n${end}`;
   }
 
-  demo() {
-    this.render(DEMO);
+  getFragmentShaderSource() {
+    let source = '';
+
+    // text area editor
+    let fsInput = this.shadowRoot.querySelector('textarea[name="fragment-shader"]') || this.querySelector('textarea[name="fragment-shader"]');
+    if (!fsInput) {
+      const fsInputId = this.getAttribute('fs-input');
+      fsInput = document.getElementById(fsInputId);
+    }
+    if (fsInput) {
+      source = fsInput.value;
+    }
+
+    // script tag
+    if (!source) {
+      const fsEl = this.querySelector('script[type="x-shader/x-fragment"]');
+      if (fsEl) {
+        source = fsEl.textContent;
+      }
+    }
+
+    // fallback demo
+    if (!source) {
+      source = DEMO_FS;
+    }
+
+    // fill back to textarea
+    if (fsInput) {
+      fsInput.value = source;
+    }
+
+    return source;
   }
 
 }
