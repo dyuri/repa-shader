@@ -15,6 +15,7 @@ const CHUNKS = {
 #define m mouse
 #define t time
 #define f frame
+#define o outColor
 precision highp float;
 uniform vec2 resolution;
 uniform vec2 mouse;
@@ -53,6 +54,7 @@ class RepaShader extends HTMLElement {
     this._cfg = cfg;
     this.attachShadow({ mode: 'open' });
     this.logger = createLogger(["%c[repa-shader]", "background: #1d2021; color: #bada55"]);
+    this._snippets = {};
   }
 
   connectedCallback() {
@@ -94,6 +96,33 @@ class RepaShader extends HTMLElement {
     this.reset(time);
   }
 
+  get snippetPrefix() {
+    return this.getAttribute('snippet-prefix') || 'snippets';
+  }
+
+  async loadSnippet(name) {
+    let url = name;
+    if (!url.startsWith('http')) {
+      url = `${this.snippetPrefix}/${name}`;
+    }
+    const res = await fetch(url);
+    if (!res.ok) {
+      this.logger.error(`Failed to load snippet ${name}`);
+      this._snippets[name] = `// error loading snippet ${name}`;
+      return;
+    }
+    const text = await res.text();
+    this._snippets[name] = text;
+  }
+
+  async getSnippet(name) {
+    if (!this._snippets[name]) {
+      await this.loadSnippet(name);
+    }
+
+    return this._snippets[name];
+  }
+
   _resizeTarget() {
     const {width, height} = this._target.getBoundingClientRect();
     this._target.width = width;
@@ -108,7 +137,7 @@ class RepaShader extends HTMLElement {
     this._mousePosition = [x / this._target.width, 1 - y / this._target.height];
   }
 
-  reset(time) {
+  async reset(time) {
     this._resizeTarget();
 
     if (this.hasAttribute('mouse')) {
@@ -122,7 +151,7 @@ class RepaShader extends HTMLElement {
     if (!vs) {
       return;
     }
-    const fs = this._createShader(program, this.FS, false);
+    const fs = this._createShader(program, await this.getFS(), false);
     if (!fs) {
       this._gl.deleteShader(vs);
       return;
@@ -272,7 +301,7 @@ void main(){
 `;
   }
 
-  get FS() {
+  async getFS() {
     // auto guessing mode
     // - contains `precision` -> twigl classic300es
     // - no `precision`, but has `main()` -> twigl geeker300es
@@ -301,7 +330,8 @@ void main(){
         start = CHUNKS.es300 + CHUNKS.geeker;
         break;
       case 'geekest':
-        start = CHUNKS.es300 + CHUNKS.geeker + CHUNKS.geekestStart;
+        const noise = await this.getSnippet('noise.glsl');
+        start = CHUNKS.es300 + CHUNKS.geeker + noise + CHUNKS.geekestStart;
         end = CHUNKS.geekestEnd;
         break;
     }
