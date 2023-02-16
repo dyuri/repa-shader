@@ -49,9 +49,8 @@ void main() {
 `;
 
 class RepaShader extends HTMLElement {
-  constructor(cfg = {}) {
+  constructor() {
     super();
-    this._cfg = cfg;
     this.attachShadow({ mode: 'open' });
     this.logger = createLogger(["%c[repa-shader]", "background: #1d2021; color: #bada55"]);
     this._snippets = {};
@@ -65,7 +64,7 @@ class RepaShader extends HTMLElement {
     }
 
     if (!this._gl) {
-      const glopts = this._cfg.glopts || {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
+      const glopts = {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
       this._gl = this._target.getContext('webgl2', glopts);
       if (!this._gl) {
         this.logger.error("WebGL2 not supported");
@@ -74,8 +73,6 @@ class RepaShader extends HTMLElement {
     }
 
     // TODO resize
-    // TODO postprogram
-    // TODO source + reset
 
     this._gl.bindBuffer(this._gl.ARRAY_BUFFER, this._gl.createBuffer());
     this._gl.bufferData(this._gl.ARRAY_BUFFER, new Float32Array([-1,1,0,-1,-1,0,1,1,0,1,-1,0]), this._gl.STATIC_DRAW);
@@ -84,7 +81,6 @@ class RepaShader extends HTMLElement {
     this._gl.disable(this._gl.BLEND);
     this._gl.clearColor(0,0,0,1);
 
-    // TODO remove
     this.render(this.getFragmentShaderSource());
   }
 
@@ -97,7 +93,18 @@ class RepaShader extends HTMLElement {
   }
 
   get snippetPrefix() {
-    return this.getAttribute('snippet-prefix') || 'snippets';
+    if (this.hasAttribute('snippet-prefix')) {
+      return this.getAttribute('snippet-prefix');
+    }
+
+    let path = '';
+    if (import.meta?.url) {
+      const pathparts = new URL(import.meta.url).pathname.split('/');
+      pathparts.pop();
+      path = pathparts.join('/');
+    }
+
+    return path + '/snippets';
   }
 
   async loadSnippet(name) {
@@ -123,11 +130,21 @@ class RepaShader extends HTMLElement {
     return this._snippets[name];
   }
 
+  async _getSnippets() {
+    if (!this.hasAttribute('snippets')) {
+      return '';
+    }
+
+    const snippetNames = this.getAttribute('snippets').split(',');
+    const promises = snippetNames.map(s => this.getSnippet(s));
+
+    return await Promise.all(promises).then(snippets => snippets.join('\n'));
+  }
+
   _resizeTarget() {
     const {width, height} = this._target.getBoundingClientRect();
     this._target.width = width;
     this._target.height = height;
-    // TODO buffers
     this._gl.viewport(0, 0, width, height);
   }
 
@@ -169,7 +186,6 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    // TODO geek mode
     const resolution = 'resolution';
     const mouse = 'mouse';
     const nowTime = 'time';
@@ -209,7 +225,6 @@ class RepaShader extends HTMLElement {
     ++this._frame;
 
     this._gl.useProgram(this.program);
-    // TODO buffers
 
     this._gl.enableVertexAttribArray(this._attLocation);
     this._gl.vertexAttribPointer(this._attLocation, 3, this._gl.FLOAT, false, 0, 0);
@@ -263,10 +278,18 @@ class RepaShader extends HTMLElement {
     return shader;
   }
 
+  get width() {
+    return this.getAttribute('width');
+  }
+
+  get height() {
+    return this.getAttribute('height');
+  }
+
   _createTarget() {
     const target = document.createElement('canvas');
-    target.width = this._cfg.width || 300; // TODO
-    target.height = this._cfg.height || 300; // TODO
+    target.width = this.width || 300; // TODO
+    target.height = this.height || 300; // TODO
     this.shadowRoot.appendChild(target);
 
     return target;
@@ -291,7 +314,6 @@ class RepaShader extends HTMLElement {
     return this._target;
   }
 
-  // TODO
   get VS() {
     return `#version 300 es
 in vec3 position;
@@ -309,29 +331,36 @@ void main(){
     // TODO: mrt
     let mode = this.mode;
     if (!mode) {
+      const hasVersion = this._fsSource.startsWith('#version');
       const hasPrecision = this._fsSource.includes('precision');
       const hasMain = this._fsSource.includes('main()');
-      if (hasPrecision) {
+      if (hasVersion) {
+        mode = 'raw';
+      } else if (hasPrecision) {
         mode = 'classic';
       } else if (hasMain) {
         mode = 'geeker';
       } else {
         mode = 'geekest';
       }
+      this.logger.info(`Auto guessing mode: ${mode}`);
     }
 
     let start = '';
     let end = '';
+    let snippets = '';
     switch (mode) {
       case 'classic':
         start = CHUNKS.es300;
         break;
       case 'geeker':
-        start = CHUNKS.es300 + CHUNKS.geeker;
+        snippets = await this._getSnippets();
+        start = CHUNKS.es300 + CHUNKS.geeker + snippets;
         break;
       case 'geekest':
+        snippets = await this._getSnippets();
         const noise = await this.getSnippet('noise.glsl');
-        start = CHUNKS.es300 + CHUNKS.geeker + noise + CHUNKS.geekestStart;
+        start = CHUNKS.es300 + CHUNKS.geeker + noise + snippets + CHUNKS.geekestStart;
         end = CHUNKS.geekestEnd;
         break;
     }

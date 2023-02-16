@@ -22,14 +22,40 @@
   </style>
 </head>
 <body>
-  <repa-shader fs-input="fsinput" alpha mouse snippet-prefix="../src/snippets">
-<script type="x-shader/x-vertex">
-attribute vec3 position;
+  <repa-shader fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
+<script type="x-shader/x-fragmen">
 void main() {
-  gl_Position = vec4(position, 1.0);
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+
+  float dist = distance(uv, mouse);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
 }
 </script>
 <script type="x-shader/x-fragment">
+void main() {
+  vec2 n,N,q,p=FC.xy/r.y;
+  float S=9.,a,j;
+  for(mat2 m=rotate2D(5.);j++<30.;){
+    p*=m;
+    n*=m;
+    q=p*S+j+n+t;
+    a+=dot(cos(q)/S,r/r);
+    n+=q=sin(q);
+    N+=q/(S+60.);
+    S*=1.2;
+  }
+  o+=pow(max(o-o,(a+.5)*.1*vec4(6,1,2,0)+.003/length(N)),o-o+.45);
+}
+</script>
+<script type="x-shader/x-fragmen">
+precision highp float;
+uniform vec2 resolution;
+uniform vec2 mouse;
+uniform float time;
+out vec4 outColor;
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
