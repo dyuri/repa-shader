@@ -23,18 +23,19 @@
 </head>
 <body>
   <repa-shader fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
-<script type="x-shader/x-fragmen">
+<script type="x-shader/x-fragment">
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
 
   float dist = distance(uv, mouse);
-  float circle = smoothstep(.1, .2, dist) * .5 + .5;
-  vec4 acolor = vec4(col * circle, circle);
+  float circle = smoothstep(.15, .2, dist);
+  vec4 acolor = vec4(col * (1. - circle), (1. - circle)) + circle * texture(backbuffer, uv - vec2(.01, .01)) * .9;
   outColor = vec4(acolor);
 }
 </script>
-<script type="x-shader/x-fragment">
+<script type="x-shader/x-fragmen">
+// https://twigl.app/?ol=true&ss=-NOAlYulOVLklxMdxBDx
 void main() {
   vec2 n,N,q,p=FC.xy/r.y;
   float S=9.,a,j;
@@ -48,22 +49,6 @@ void main() {
     S*=1.2;
   }
   o+=pow(max(o-o,(a+.5)*.1*vec4(6,1,2,0)+.003/length(N)),o-o+.45);
-}
-</script>
-<script type="x-shader/x-fragmen">
-precision highp float;
-uniform vec2 resolution;
-uniform vec2 mouse;
-uniform float time;
-out vec4 outColor;
-void main() {
-  vec2 uv = gl_FragCoord.xy / resolution.xy;
-  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
-
-  float dist = distance(uv, mouse);
-  float circle = smoothstep(.1, .2, dist) * .5 + .5;
-  vec4 acolor = vec4(col * circle, circle);
-  outColor = vec4(acolor);
 }
 </script>
   </repa-shader>

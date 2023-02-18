@@ -15,14 +15,16 @@ const CHUNKS = {
 #define m mouse
 #define t time
 #define f frame
+#define b backbuffer
 #define o outColor
 precision highp float;
 uniform vec2 resolution;
 uniform vec2 mouse;
 uniform float time;
 uniform float frame;
+uniform sampler2D backbuffer;
 out vec4 outColor;
-`, // TODO sampler2D, MRT
+`, // TODO MRT
   geekestStart: `
 void main() {
 `,
@@ -73,6 +75,17 @@ class RepaShader extends HTMLElement {
     }
 
     // TODO resize
+
+    // postprocessing
+    this._postProgram = this._gl.createProgram();
+    const pvs = this._createShader(this._postProgram, this.postVS, true);
+    const pfs = this._createShader(this._postProgram, this.postFS);
+    this._gl.linkProgram(this._postProgram);
+    this._gl.deleteShader(pvs);
+    this._gl.deleteShader(pfs);
+    this._postUniLocation = {};
+    this._postUniLocation.texture = this._gl.getUniformLocation(this._postProgram, 'drawTexture');
+    this._postAttLocation = this._gl.getAttribLocation(this._postProgram, 'position');
 
     this._gl.bindBuffer(this._gl.ARRAY_BUFFER, this._gl.createBuffer());
     this._gl.bufferData(this._gl.ARRAY_BUFFER, new Float32Array([-1,1,0,-1,-1,0,1,1,0,1,-1,0]), this._gl.STATIC_DRAW);
@@ -154,8 +167,74 @@ class RepaShader extends HTMLElement {
     this._mousePosition = [x / this._target.width, 1 - y / this._target.height];
   }
 
+  _resetBuffer(buff) {
+    if (!this._gl || !buff) {
+      return;
+    }
+
+    // framebuffer
+    if (buff.framebuffer && this._gl.isFramebuffer(buff.framebuffer)) {
+      this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, null);
+      this._gl.deleteFramebuffer(buff.framebuffer);
+      buff.framebuffer = null;
+    }
+
+    // renderbuffer
+    if (buff.renderbuffer && this._gl.isRenderbuffer(buff.renderbuffer)) {
+      this._gl.bindRenderbuffer(this._gl.RENDERBUFFER, null);
+      this._gl.deleteRenderbuffer(buff.renderbuffer);
+      buff.renderbuffer = null;
+    }
+
+    // texture
+    if (buff.texture && this._gl.isTexture(buff.texture)) {
+      this._gl.bindTexture(this._gl.TEXTURE_2D, null);
+      this._gl.deleteTexture(buff.texture);
+      buff.texture = null;
+    }
+  }
+
+  _createBuffer(w, h) {
+    const buff = {};
+
+    // framebuffer
+    buff.framebuffer = this._gl.createFramebuffer();
+    this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, buff.framebuffer);
+
+    // renderbuffer
+    buff.renderbuffer = this._gl.createRenderbuffer();
+    this._gl.bindRenderbuffer(this._gl.RENDERBUFFER, buff.renderbuffer);
+    this._gl.renderbufferStorage(this._gl.RENDERBUFFER, this._gl.DEPTH_COMPONENT16, w, h);
+    this._gl.framebufferRenderbuffer(this._gl.FRAMEBUFFER, this._gl.DEPTH_ATTACHMENT, this._gl.RENDERBUFFER, buff.renderbuffer);
+
+    // texture
+    buff.texture = this._gl.createTexture();
+    this._gl.bindTexture(this._gl.TEXTURE_2D, buff.texture);
+    this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, w, h, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, null);
+    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
+    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
+    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
+    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+    this._gl.framebufferTexture2D(this._gl.FRAMEBUFFER, this._gl.COLOR_ATTACHMENT0, this._gl.TEXTURE_2D, buff.texture, 0);
+
+    // unbind
+    this._gl.bindTexture(this._gl.TEXTURE_2D, null);
+    this._gl.bindRenderbuffer(this._gl.RENDERBUFFER, null);
+    this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, null);
+
+    return buff;
+  }
+
+  _resetBuffers() {
+    this._resetBuffer(this.backbuffer);
+    this._resetBuffer(this.frontbuffer);
+  }
+
   async reset(time) {
     this._resizeTarget();
+    this._resetBuffers();
+    this.backbuffer = this._createBuffer(this._target.width, this._target.height);
+    this.frontbuffer = this._createBuffer(this._target.width, this._target.height);
 
     if (this.hasAttribute('mouse')) {
       this._target.addEventListener('pointermove', this._onMouseMove.bind(this));
@@ -186,11 +265,7 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    const resolution = 'resolution';
-    const mouse = 'mouse';
-    const nowTime = 'time';
-    const frame = 'frame';
-    // TODO sound? backbuffer? mrt?
+    // TODO sound? mrt? textures?
 
     if (this._program) {
       this._gl.deleteProgram(this._program);
@@ -198,10 +273,11 @@ class RepaShader extends HTMLElement {
     this.program = program;
     this._gl.useProgram(this.program);
     this._uniLocation = {};
-    this._uniLocation.resolution = this._gl.getUniformLocation(this.program, resolution);
-    this._uniLocation.mouse = this._gl.getUniformLocation(this.program, mouse);
-    this._uniLocation.time = this._gl.getUniformLocation(this.program, nowTime);
-    this._uniLocation.frame = this._gl.getUniformLocation(this.program, frame);
+    this._uniLocation.resolution = this._gl.getUniformLocation(this.program, 'resolution');
+    this._uniLocation.mouse = this._gl.getUniformLocation(this.program, 'mouse');
+    this._uniLocation.time = this._gl.getUniformLocation(this.program, 'time');
+    this._uniLocation.frame = this._gl.getUniformLocation(this.program, 'frame');
+    this._uniLocation.backbuffer = this._gl.getUniformLocation(this.program, 'backbuffer');
 
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
     this._mousePosition= [0, 0];
@@ -226,6 +302,13 @@ class RepaShader extends HTMLElement {
 
     this._gl.useProgram(this.program);
 
+    this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, this.frontbuffer.framebuffer);
+
+    // backbuffer
+    this._gl.activeTexture(this._gl.TEXTURE0);
+    this._gl.bindTexture(this._gl.TEXTURE_2D, this.backbuffer.texture);
+    this._gl.uniform1i(this._uniLocation.backbuffer, 0);
+
     this._gl.enableVertexAttribArray(this._attLocation);
     this._gl.vertexAttribPointer(this._attLocation, 3, this._gl.FLOAT, false, 0, 0);
     this._gl.clear(this._gl.COLOR_BUFFER_BIT);
@@ -236,7 +319,22 @@ class RepaShader extends HTMLElement {
 
     this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
 
+    // fill buffer
+    this._gl.useProgram(this._postProgram);
+    this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, null);
+    this._gl.activeTexture(this._gl.TEXTURE0);
+    this._gl.bindTexture(this._gl.TEXTURE_2D, this.frontbuffer.texture);
+    this._gl.enableVertexAttribArray(this._postAttLocation);
+    this._gl.vertexAttribPointer(this._postAttLocation, 3, this._gl.FLOAT, false, 0, 0);
+    this._gl.clear(this._gl.COLOR_BUFFER_BIT);
+    this._gl.uniform1i(this._postUniLocation.texture, 0);
+    this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
+
     this._gl.flush();
+
+    // swap buffers
+    [this.frontbuffer, this.backbuffer] = [this.backbuffer, this.frontbuffer];
+
     // TODO draw callback
   }
 
@@ -319,12 +417,33 @@ class RepaShader extends HTMLElement {
 in vec3 position;
 void main(){
   gl_Position=vec4(position, 1.);
-}
-`;
+}`;
+  }
+
+  get postVS() {
+    return `#version 300 es
+in vec3 position;
+out vec2 vTexCoord;
+void main() {
+  vTexCoord = (position.xy + 1.0) * 0.5;
+  gl_Position = vec4(position, 1.);
+}`;
+  }
+
+  get postFS() {
+    return `#version 300 es
+precision mediump float;
+uniform sampler2D drawTexture;
+in vec2 vTexCoord;
+layout (location = 0) out vec4 outColor;
+void main() {
+  outColor = texture(drawTexture, vTexCoord);
+}`;
   }
 
   async getFS() {
     // auto guessing mode
+    // - starts with #version -> raw
     // - contains `precision` -> twigl classic300es
     // - no `precision`, but has `main()` -> twigl geeker300es
     // - no `precision`, no `main()` -> twigl geekest300es
@@ -350,6 +469,8 @@ void main(){
     let end = '';
     let snippets = '';
     switch (mode) {
+      case 'raw':
+        return this._fsSource;
       case 'classic':
         start = CHUNKS.es300;
         break;
