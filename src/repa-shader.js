@@ -15,16 +15,12 @@ const CHUNKS = {
 #define m mouse
 #define t time
 #define f frame
-#define b backbuffer
-#define o outColor
 precision highp float;
 uniform vec2 resolution;
-uniform vec2 mouse;
+uniform vec3 mouse;
 uniform float time;
 uniform float frame;
-uniform sampler2D backbuffer;
-out vec4 outColor;
-`, // TODO MRT
+`,
   geekestStart: `
 void main() {
 `,
@@ -34,19 +30,21 @@ void main() {
 };
 
 const DEMO_FS = `
-precision highp float;
-uniform vec2 resolution;
-uniform vec2 mouse;
-uniform float time;
-out vec4 outColor;
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
 
-  float dist = distance(uv, mouse);
+  float dist = distance(uv, mouse.xy);
   float circle = smoothstep(.1, .2, dist) * .5 + .5;
   vec4 acolor = vec4(col * circle, circle);
   outColor = vec4(acolor);
+}
+`;
+
+const DEFAULT_VS = `#version 300 es
+in vec3 position;
+void main(){
+  gl_Position=vec4(position, 1.);
 }
 `;
 
@@ -94,12 +92,16 @@ class RepaShader extends HTMLElement {
     this._gl.disable(this._gl.BLEND);
     this._gl.clearColor(0,0,0,1);
 
-    this.render(this.getFragmentShaderSource());
+    this.render();
   }
 
-  render(source, time) {
+  disconnectedCallback() {
+    // TODO stop animation
+  }
+
+  async render(source, time) {
     if (!source) {
-      return;
+      source = await this.getFragmentShaderSource();
     }
     this._fsSource = source;
     this.reset(time);
@@ -161,10 +163,11 @@ class RepaShader extends HTMLElement {
     this._gl.viewport(0, 0, width, height);
   }
 
-  _onMouseMove(e) {
+  _onMouseEvent(e) {
     const x = Math.min(Math.max(e.offsetX, 0), this._target.width);
     const y = Math.min(Math.max(e.offsetY, 0), this._target.height);
-    this._mousePosition = [x / this._target.width, 1 - y / this._target.height];
+    const btn = e.buttons;
+    this._mousePosition = [x / this._target.width, 1 - y / this._target.height, btn];
   }
 
   _resetBuffer(buff) {
@@ -186,11 +189,15 @@ class RepaShader extends HTMLElement {
       buff.renderbuffer = null;
     }
 
-    // texture
-    if (buff.texture && this._gl.isTexture(buff.texture)) {
-      this._gl.bindTexture(this._gl.TEXTURE_2D, null);
-      this._gl.deleteTexture(buff.texture);
-      buff.texture = null;
+    // textures
+    if (buff.textures?.length) {
+      buff.textures.forEach(t => {
+        if (this._gl.isTexture(t)) {
+          this._gl.bindTexture(this._gl.TEXTURE_2D, null);
+          this._gl.deleteTexture(t);
+        }
+      });
+      buff.textures = null;
     }
   }
 
@@ -207,15 +214,21 @@ class RepaShader extends HTMLElement {
     this._gl.renderbufferStorage(this._gl.RENDERBUFFER, this._gl.DEPTH_COMPONENT16, w, h);
     this._gl.framebufferRenderbuffer(this._gl.FRAMEBUFFER, this._gl.DEPTH_ATTACHMENT, this._gl.RENDERBUFFER, buff.renderbuffer);
 
-    // texture
-    buff.texture = this._gl.createTexture();
-    this._gl.bindTexture(this._gl.TEXTURE_2D, buff.texture);
-    this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, w, h, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, null);
-    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
-    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
-    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
-    this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
-    this._gl.framebufferTexture2D(this._gl.FRAMEBUFFER, this._gl.COLOR_ATTACHMENT0, this._gl.TEXTURE_2D, buff.texture, 0);
+    // textures
+    buff.textures = [];
+    buff.buffers = []; // TODO ???
+    for (let i = 0; i < this.mrt; i++) {
+      let texture = this._gl.createTexture();
+      this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
+      this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, w, h, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, null);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+      this._gl.framebufferTexture2D(this._gl.FRAMEBUFFER, this._gl.COLOR_ATTACHMENT0 + i, this._gl.TEXTURE_2D, texture, 0);
+      buff.textures.push(texture);
+      buff.buffers.push(this._gl.COLOR_ATTACHMENT0 + i);
+    }
 
     // unbind
     this._gl.bindTexture(this._gl.TEXTURE_2D, null);
@@ -233,17 +246,19 @@ class RepaShader extends HTMLElement {
   async reset(time) {
     this._resizeTarget();
     this._resetBuffers();
-    this.backbuffer = this._createBuffer(this._target.width, this._target.height);
     this.frontbuffer = this._createBuffer(this._target.width, this._target.height);
+    this.backbuffer = this._createBuffer(this._target.width, this._target.height);
 
     if (this.hasAttribute('mouse')) {
-      this._target.addEventListener('pointermove', this._onMouseMove.bind(this));
+      this._target.addEventListener('mousemove', this._onMouseEvent.bind(this));
+      this._target.addEventListener('mousedown', this._onMouseEvent.bind(this));
+      this._target.addEventListener('mouseup', this._onMouseEvent.bind(this));
     }
 
     this.mode = this.getAttribute('mode') || this.mode;
 
     const program = this._gl.createProgram();
-    const vs = this._createShader(program, this.VS, true);
+    const vs = this._createShader(program, await this.getVS(), true);
     if (!vs) {
       return;
     }
@@ -265,7 +280,7 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    // TODO sound? mrt? textures?
+    // TODO sound? textures?
 
     if (this._program) {
       this._gl.deleteProgram(this._program);
@@ -277,10 +292,14 @@ class RepaShader extends HTMLElement {
     this._uniLocation.mouse = this._gl.getUniformLocation(this.program, 'mouse');
     this._uniLocation.time = this._gl.getUniformLocation(this.program, 'time');
     this._uniLocation.frame = this._gl.getUniformLocation(this.program, 'frame');
-    this._uniLocation.backbuffer = this._gl.getUniformLocation(this.program, 'backbuffer');
+
+    // backbuffers
+    for (let i = 0; i < this.mrt; i++) {
+      this._uniLocation[`backbuffer${i}`] = this._gl.getUniformLocation(this.program, `backbuffer${i}`);
+    }
 
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
-    this._mousePosition= [0, 0];
+    this._mousePosition= [0, 0, 0];
     this._startTime = Date.now();
     this._frame = 0;
 
@@ -288,10 +307,6 @@ class RepaShader extends HTMLElement {
   }
 
   draw(time) {
-    if (this.running) {
-      requestAnimationFrame(this.draw.bind(this));
-    }
-
     if (time) {
       this._nowTime = time;
     } else {
@@ -305,15 +320,19 @@ class RepaShader extends HTMLElement {
     this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, this.frontbuffer.framebuffer);
 
     // backbuffer
-    this._gl.activeTexture(this._gl.TEXTURE0);
-    this._gl.bindTexture(this._gl.TEXTURE_2D, this.backbuffer.texture);
-    this._gl.uniform1i(this._uniLocation.backbuffer, 0);
+    this._gl.drawBuffers(this.frontbuffer.buffers);
+
+    for (let i = 0; i < this.mrt; i++) {
+      this._gl.activeTexture(this._gl.TEXTURE0 + i);
+      this._gl.bindTexture(this._gl.TEXTURE_2D, this.backbuffer.textures[i]);
+      this._gl.uniform1i(this._uniLocation[`backbuffer${i}`], i);
+    }
 
     this._gl.enableVertexAttribArray(this._attLocation);
     this._gl.vertexAttribPointer(this._attLocation, 3, this._gl.FLOAT, false, 0, 0);
     this._gl.clear(this._gl.COLOR_BUFFER_BIT);
     this._gl.uniform2fv(this._uniLocation.resolution, [this._target.width, this._target.height]);
-    this._gl.uniform2fv(this._uniLocation.mouse, this._mousePosition);
+    this._gl.uniform3fv(this._uniLocation.mouse, this._mousePosition);
     this._gl.uniform1f(this._uniLocation.time, this._nowTime * .001);
     this._gl.uniform1f(this._uniLocation.frame, this._frame);
 
@@ -323,7 +342,7 @@ class RepaShader extends HTMLElement {
     this._gl.useProgram(this._postProgram);
     this._gl.bindFramebuffer(this._gl.FRAMEBUFFER, null);
     this._gl.activeTexture(this._gl.TEXTURE0);
-    this._gl.bindTexture(this._gl.TEXTURE_2D, this.frontbuffer.texture);
+    this._gl.bindTexture(this._gl.TEXTURE_2D, this.frontbuffer.textures[0]);
     this._gl.enableVertexAttribArray(this._postAttLocation);
     this._gl.vertexAttribPointer(this._postAttLocation, 3, this._gl.FLOAT, false, 0, 0);
     this._gl.clear(this._gl.COLOR_BUFFER_BIT);
@@ -336,6 +355,10 @@ class RepaShader extends HTMLElement {
     [this.frontbuffer, this.backbuffer] = [this.backbuffer, this.frontbuffer];
 
     // TODO draw callback
+
+    if (this.running) {
+      requestAnimationFrame(this.draw.bind(this));
+    }
   }
 
   run() {
@@ -377,11 +400,11 @@ class RepaShader extends HTMLElement {
   }
 
   get width() {
-    return this.getAttribute('width');
+    return parseInt(this.getAttribute('width'), 10);
   }
 
   get height() {
-    return this.getAttribute('height');
+    return parseInt(this.getAttribute('height'), 10);
   }
 
   _createTarget() {
@@ -412,12 +435,8 @@ class RepaShader extends HTMLElement {
     return this._target;
   }
 
-  get VS() {
-    return `#version 300 es
-in vec3 position;
-void main(){
-  gl_Position=vec4(position, 1.);
-}`;
+  get mrt() {
+    return +this.getAttribute('render-target-count') || 1;
   }
 
   get postVS() {
@@ -441,13 +460,59 @@ void main() {
 }`;
   }
 
+  _getRenderTargets() {
+    const targets = [];
+
+    if (this.mrt > 1) {
+      for (let i = 0; i < this.mrt; i++) {
+        const target = `
+  #define b${i} backbuffer${i}
+  #define o${i} outColor${i}
+  uniform sampler2D backbuffer${i};
+  layout (location = ${i}) out vec4 outColor${i};
+  `;
+        targets.push(target);
+      }
+    } else {
+      targets.push(`
+  #define b backbuffer0
+  #define o outColor0
+  #define backbuffer backbuffer0
+  #define outColor outColor0
+  uniform sampler2D backbuffer0;
+  layout (location = 0) out vec4 outColor0;
+  `);
+    }
+
+    return targets.join('');
+  }
+
+  async getVS() {
+    let source = '';
+
+    const vsEl = this.querySelector('script[type="x-shader/x-vertex"]');
+    if (vsEl) {
+      const vsSrc = vsEl.getAttribute('src');
+      if (vsSrc) {
+        source = await fetch(vsSrc).then(res => res.text());
+      } else {
+        source = vsEl.textContent.trim();
+      }
+    }
+
+    if (!source) {
+      source = DEFAULT_VS;
+    }
+
+    return source;
+  }
+
   async getFS() {
     // auto guessing mode
     // - starts with #version -> raw
     // - contains `precision` -> twigl classic300es
     // - no `precision`, but has `main()` -> twigl geeker300es
     // - no `precision`, no `main()` -> twigl geekest300es
-    // TODO: mrt
     let mode = this.mode;
     if (!mode) {
       const hasVersion = this._fsSource.startsWith('#version');
@@ -476,12 +541,14 @@ void main() {
         break;
       case 'geeker':
         snippets = await this._getSnippets();
-        start = CHUNKS.es300 + CHUNKS.geeker + snippets;
+        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + snippets;
         break;
       case 'geekest':
         snippets = await this._getSnippets();
-        const noise = await this.getSnippet('noise.glsl');
-        start = CHUNKS.es300 + CHUNKS.geeker + noise + snippets + CHUNKS.geekestStart;
+        if (!snippets) {
+          snippets = await this.getSnippet('noise.glsl');
+        }
+        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + snippets + CHUNKS.geekestStart;
         end = CHUNKS.geekestEnd;
         break;
     }
@@ -489,7 +556,7 @@ void main() {
     return `${start}\n${this._fsSource}\n${end}`;
   }
 
-  getFragmentShaderSource() {
+  async getFragmentShaderSource() {
     let source = '';
 
     // text area editor
@@ -506,7 +573,12 @@ void main() {
     if (!source) {
       const fsEl = this.querySelector('script[type="x-shader/x-fragment"]');
       if (fsEl) {
-        source = fsEl.textContent;
+        const fsSrc = fsEl.getAttribute('src');
+        if (fsSrc) {
+          source = await fetch(fsSrc).then(res => res.text());
+        } else {
+          source = fsEl.textContent.trim();
+        }
       }
     }
 

@@ -22,23 +22,35 @@
   </style>
 </head>
 <body>
-  <repa-shader fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
-<script type="x-shader/x-fragmen[DELETE]t">
-// https://twigl.app/?ol=true&ss=-NOAlYulOVLklxMdxBDx
-void main() {
-  vec2 n,N,q,p=FC.xy/r.y;
-  float S=9.,a,j;
-  for(mat2 m=rotate2D(5.);j++<30.;){
-    p*=m;
-    n*=m;
-    q=p*S+j+n+t;
-    a+=dot(cos(q)/S,r/r);
-    n+=q=sin(q);
-    N+=q/(S+60.);
-    S*=1.2;
-  }
-  o+=pow(max(o-o,(a+.5)*.1*vec4(6,1,2,0)+.003/length(N)),o-o+.45);
+  <repa-shader fs-input="fsinput" mouse snippets="noise.glsl" width=512 height=512 render-target-count=2>
+<script type="x-shader/x-fragment">
+#define R rotate2D
+vec2 c=FC.xy;
+vec2 uv=FC.xy/r.xy;
+vec2 q;
+vec2 p=(c+c-r)/r.y;
+vec2 n;
+vec4 color;
+
+float S=6.;
+float a;
+float d=dot(p,p);
+float e=200.;
+p/=.7-d;
+p+=t/PI;
+
+for(float i = 0.; i < e; i++) {
+  color+=(texture(b1,(c/r-.5)*i/e+.5))/e;
+  p*=R(5.);
+  n*=R(5.);
+  a+=dot(sin(q=p*S+i-abs(n)*R(t*.2))/S,r/r);
+  n+=cos(q),S*=1.1;
 }
+// a = max(s,.9-a*.2-d);
+a = max(0.,.9-a*.2-d);
+o1=pow(a+a*vec4(8,4,1,0)/e,color+40.);
+float center = smoothstep(.45, .55, uv.x);
+o0=center*color + o1;
 </script>
   </repa-shader>
   <div>
