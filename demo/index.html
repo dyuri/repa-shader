@@ -22,7 +22,10 @@
   </style>
 </head>
 <body>
-  <repa-shader fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
+  <repa-shader id="demoshader" fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
+    <repa-texture src="avatar.png"></repa-texture>
+    <repa-texture src="futas.mp4"></repa-texture>
+    <!-- repa-texture src="webcam"></repa-texture -->
 <script type="x-shader/x-fragmen[DELETE]t">
 // https://twigl.app/?ol=true&ss=-NOAlYulOVLklxMdxBDx
 void main() {
