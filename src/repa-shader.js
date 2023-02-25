@@ -243,9 +243,33 @@ class RepaShader extends HTMLElement {
     this._resetBuffer(this.frontbuffer);
   }
 
+  _collectTextures() {
+    this._textures = [];
+
+    this.querySelectorAll('repa-texture').forEach(t => {
+      const texture = this._gl.createTexture();
+      this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
+
+      // TODO get params from attributes
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
+
+      // fill texture with default black
+      this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, 1, 1, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
+
+      this._textures.push({
+        texture,
+        texElement: t,
+      });
+    });
+  }
+
   async reset(time) {
     this._resizeTarget();
     this._resetBuffers();
+    this._collectTextures();
     this.frontbuffer = this._createBuffer(this._target.width, this._target.height);
     this.backbuffer = this._createBuffer(this._target.width, this._target.height);
 
@@ -298,6 +322,12 @@ class RepaShader extends HTMLElement {
       this._uniLocation[`backbuffer${i}`] = this._gl.getUniformLocation(this.program, `backbuffer${i}`);
     }
 
+    // textures
+    this._textures.forEach((t) => {
+      this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
+      this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
+    });
+
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
     this._mousePosition= [0, 0, 0];
     this._startTime = Date.now();
@@ -335,6 +365,20 @@ class RepaShader extends HTMLElement {
     this._gl.uniform3fv(this._uniLocation.mouse, this._mousePosition);
     this._gl.uniform1f(this._uniLocation.time, this._nowTime * .001);
     this._gl.uniform1f(this._uniLocation.frame, this._frame);
+
+    // textures
+    this._textures.forEach((t, i) => {
+      this._gl.activeTexture(this._gl.TEXTURE0 + i + this.mrt);
+      this._gl.bindTexture(this._gl.TEXTURE_2D, t.texture);
+
+      // update if needed
+      if (t.texElement.shouldUpdate) {
+        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, this._gl.RGBA, this._gl.UNSIGNED_BYTE, t.texElement.update());
+      }
+
+      this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
+      // TODO dimension
+    });
 
     this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
 
@@ -487,6 +531,14 @@ void main() {
     return targets.join('');
   }
 
+  _getTextures() {
+    return this._textures.map(t => {
+      return `
+  uniform sampler2D ${t.texElement.name};
+  `;
+    }).join('');
+  }
+
   async getVS() {
     let source = '';
 
@@ -541,14 +593,14 @@ void main() {
         break;
       case 'geeker':
         snippets = await this._getSnippets();
-        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + snippets;
+        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + this._getTextures() + snippets;
         break;
       case 'geekest':
         snippets = await this._getSnippets();
         if (!snippets) {
           snippets = await this.getSnippet('noise.glsl');
         }
-        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + snippets + CHUNKS.geekestStart;
+        start = CHUNKS.es300 + CHUNKS.geeker + this._getRenderTargets() + this._getTextures() + snippets + CHUNKS.geekestStart;
         end = CHUNKS.geekestEnd;
         break;
     }

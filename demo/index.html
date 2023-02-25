@@ -24,10 +24,22 @@
 </head>
 <body>
   <repa-shader id="demoshader" fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
-    <repa-texture src="avatar.png"></repa-texture>
+    <repa-texture src="avatar.png" name="tex_avatar"></repa-texture>
     <repa-texture src="futas.mp4"></repa-texture>
     <!-- repa-texture src="webcam"></repa-texture -->
     <!-- repa-texture ref="demoshader"></repa-texture -->
+<script type="x-shader/x-fragment">
+void main() {
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+  col *= texture(tex_avatar, 1.-uv).rgb;
+
+  float dist = distance(uv, mouse.xy);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
+}
+</script>
 <script type="x-shader/x-fragmen[DELETE]t">
 // https://twigl.app/?ol=true&ss=-NOAlYulOVLklxMdxBDx
 void main() {

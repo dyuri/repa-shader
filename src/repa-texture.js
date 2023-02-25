@@ -39,7 +39,7 @@ class RepaTexture extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['src', 'type', 'name', 'mag-filter', 'min-filter', 'wrap-s', 'wrap-t'];
+    return ['src', 'type', 'mag-filter', 'min-filter', 'wrap-s', 'wrap-t'];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -124,11 +124,10 @@ class RepaTexture extends HTMLElement {
 
   _hideInDOM(el) {
     const hiddenEl = document.createElement('div');
-    hiddenEl.setAttribute('hidden', '');
     hiddenEl.style.width = hiddenEl.style.height = '1px';
+    hiddenEl.style.top = hiddenEl.style.left = '1px';
     hiddenEl.style.overflow = 'hidden';
-    hiddenEl.style.position = 'absolute';
-    hiddenEl.style.top = hiddenEl.style.left = '-100px';
+    hiddenEl.style.position = 'fixed';
     hiddenEl.style.zIndex = '-100';
     hiddenEl.style.opacity = '0';
     hiddenEl.style.pointerEvents = 'none';
@@ -238,8 +237,13 @@ class RepaTexture extends HTMLElement {
     return null;
   }
 
+  update() {
+    this._forceUpdate = false;
+    return this.content;
+  }
+
   get shouldUpdate() {
-    return this._forceUpdate || (this.ref && this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA);
+    return this.ready && (this._forceUpdate || (this.ref && this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA));
   }
 
   get width() {
