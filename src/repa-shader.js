@@ -326,6 +326,7 @@ class RepaShader extends HTMLElement {
     this._textures.forEach((t) => {
       this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
       this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
+      t.texElement.forceUpdate();
     });
 
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
@@ -377,7 +378,7 @@ class RepaShader extends HTMLElement {
       }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
-      // TODO dimension
+      this._gl.uniform2fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1]);
     });
 
     this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
@@ -535,6 +536,7 @@ void main() {
     return this._textures.map(t => {
       return `
   uniform sampler2D ${t.texElement.name};
+  uniform vec2 ${t.texElement.name}_d;
   `;
     }).join('');
   }

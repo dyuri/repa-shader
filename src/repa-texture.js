@@ -242,6 +242,10 @@ class RepaTexture extends HTMLElement {
     return this.content;
   }
 
+  forceUpdate() {
+    this._forceUpdate = true;
+  }
+
   get shouldUpdate() {
     return this.ready && (this._forceUpdate || (this.ref && this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA));
   }
