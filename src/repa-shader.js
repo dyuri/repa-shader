@@ -216,7 +216,7 @@ class RepaShader extends HTMLElement {
 
     // textures
     buff.textures = [];
-    buff.buffers = []; // TODO ???
+    buff.buffers = [];
     for (let i = 0; i < this.mrt; i++) {
       let texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
@@ -243,6 +243,14 @@ class RepaShader extends HTMLElement {
     this._resetBuffer(this.frontbuffer);
   }
 
+  _getWrap(wrap) {
+    return this._gl[wrap.toUpperCase().replaceAll('-', '_')] || this._gl.CLAMP_TO_EDGE;
+  }
+
+  _getFilter(filter) {
+    return this._gl[filter.toUpperCase().replaceAll('-', '_')] || this._gl.LINEAR;
+  }
+
   _collectTextures() {
     this._textures = [];
 
@@ -250,14 +258,13 @@ class RepaShader extends HTMLElement {
       const texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
 
-      // TODO get params from attributes
-      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
-      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
-      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
-      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._getWrap(t.wrapS));
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._getWrap(t.wrapT));
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._getFilter(t.minFilter));
+      this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._getFilter(t.magFilter));
 
       // fill texture with default black
-      this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, 1, 1, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
+      this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, 1, 1, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255]));
 
       this._textures.push({
         texture,
@@ -274,9 +281,10 @@ class RepaShader extends HTMLElement {
     this.backbuffer = this._createBuffer(this._target.width, this._target.height);
 
     if (this.hasAttribute('mouse')) {
-      this._target.addEventListener('mousemove', this._onMouseEvent.bind(this));
+      this._target.addEventListener('pointermove', this._onMouseEvent.bind(this));
       this._target.addEventListener('mousedown', this._onMouseEvent.bind(this));
       this._target.addEventListener('mouseup', this._onMouseEvent.bind(this));
+      // TODO touch ?
     }
 
     this.mode = this.getAttribute('mode') || this.mode;
@@ -304,7 +312,7 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    // TODO sound? textures?
+    // TODO sound?
 
     if (this._program) {
       this._gl.deleteProgram(this._program);
@@ -454,8 +462,8 @@ class RepaShader extends HTMLElement {
 
   _createTarget() {
     const target = document.createElement('canvas');
-    target.width = this.width || 300; // TODO
-    target.height = this.height || 300; // TODO
+    target.width = this.width || 300;
+    target.height = this.height || 300;
     this.shadowRoot.appendChild(target);
 
     return target;

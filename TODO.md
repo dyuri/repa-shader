@@ -1,8 +1,5 @@
 - textures
-  - image
-  - canvas
-  - video
-  - webcam
+  - canvas / other shader
   - audio
   - mic?
 - fix mouse, add button, drag

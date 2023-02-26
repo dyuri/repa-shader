@@ -17,7 +17,6 @@ const isVideo = (src) => {
 
 /* TODO
  * - display content on canvas
- * - src change
  * - ready promise
  **
  * types: image, [video, webcam], [canvas, shader]
@@ -34,12 +33,8 @@ class RepaTexture extends HTMLElement {
     this._load();
   }
 
-  disconnectedCallback() {
-    // TODO ?
-  }
-
   static get observedAttributes() {
-    return ['src', 'type', 'mag-filter', 'min-filter', 'wrap-s', 'wrap-t'];
+    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap'];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -259,19 +254,19 @@ class RepaTexture extends HTMLElement {
   }
 
   get magFilter() {
-    return this.getAttribute('mag-filter') || 'linear';
+    return this.getAttribute('mag-filter') || this.getAttribute('filter') || 'linear';
   }
 
   get minFilter() {
-    return this.getAttribute('min-filter') || 'linear';
+    return this.getAttribute('min-filter') || this.getAttribute('filter') || 'linear';
   }
 
   get wrapS() {
-    return this.getAttribute('wrap-s') || 'clamp-to-edge';
+    return this.getAttribute('wrap-s') || this.getAttribute('wrap') || 'clamp-to-edge';
   }
 
   get wrapT() {
-    return this.getAttribute('wrap-t') || 'clamp-to-edge';
+    return this.getAttribute('wrap-t') || this.getAttribute('wrap') || 'clamp-to-edge';
   }
 
   get name() {
