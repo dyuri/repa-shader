@@ -242,7 +242,14 @@ class RepaTexture extends HTMLElement {
   }
 
   get shouldUpdate() {
-    return this.ready && (this._forceUpdate || (this.ref && this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA));
+    return this.ready &&
+      (this._forceUpdate || (
+        this.ref && (
+          (this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA) ||
+          (this.ref instanceof HTMLCanvasElement)
+        )
+      )
+    );
   }
 
   get width() {

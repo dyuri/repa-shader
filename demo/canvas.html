@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>&lt;repa-shader&gt; demo</title>
+  <script type="module" src="../src/repa-texture.js"></script>
+  <script type="module" src="../src/repa-shader.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: repeating-linear-gradient(45deg, #333, #333 10px, #666 10px, #666 20px);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #fsinput {
+      width: 90vw;
+      height: 50vh;
+    }
+    #cnt {
+      display: flex;
+      flex-direction: row;
+    }
+    label {
+      display: block;
+      padding: .5rem 1rem;
+      background: white;
+    }
+    #drwcnt {
+      position: relative;
+    }
+    #drwcnt .tooltip {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      background-color: rgba(0, 0, 0, .5);
+      color: white;
+      padding: .5em;
+      text-align: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="cnt">
+    <div id="drwcnt">
+      <canvas id="drawing" width=512 height=512></canvas>
+      <div class="tooltip">Draw here!</div>
+    </div>
+    <repa-shader id="demoshader" fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
+      <repa-texture ref="drawing"></repa-texture>
+<script type="x-shader/x-fragment">
+void main() {
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+  col *= texture(texture0, vec2(uv.x, 1.-uv.y)).rgb;
+
+  float dist = distance(uv, mouse.xy);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
+}
+</script>
+    </repa-shader>
+  </div>
+  <div>
+    <label for="reverse_draw"><input id="reverse_draw" type="checkbox"> Reverse draw</label>
+  </div>
+  <div>
+    <textarea id="fsinput"></textarea>
+  </div>
+  <button id="update">Update</button>
+<script>
+const updateButton = document.getElementById('update');
+updateButton.addEventListener('click', () => {
+  const fsinput = document.getElementById('fsinput');
+  const shader = document.querySelector('repa-shader');
+  shader.render(fsinput.value);
+});
+
+// draw on canvas with mouse
+const canvas = document.getElementById("drawing");
+
+const ctx = canvas.getContext("2d");
+ctx.fillStyle = "black";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+const draw = (e) => {
+  if (e.buttons) {
+    const ctx = canvas.getContext("2d");
+    const reverseDraw = document.getElementById("reverse_draw").checked;
+    ctx.fillStyle = reverseDraw ? 'black' : 'white';
+    ctx.fillRect(e.offsetX - 5, e.offsetY - 5, 10, 10);
+  }
+};
+
+canvas.addEventListener("mousedown", draw);
+canvas.addEventListener('mousemove', draw);
+</script>
+</body>
+</html>
