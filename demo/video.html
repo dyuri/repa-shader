@@ -23,38 +23,22 @@
   </style>
 </head>
 <body>
+  <video controls loop autoplay id="video" width=200> 
+    <source src="futas.mp4">
+  </video>
   <repa-shader id="demoshader" fs-input="fsinput" alpha mouse snippets="noise.glsl" width=512 height=512>
-    <repa-texture src="avatar.png" name="tex_avatar" wrap="mirrored_repeat"></repa-texture>
-    <repa-texture src="futas.mp4"></repa-texture>
-    <!-- repa-texture filter="nearest">[[1, 2, 3, 4, 5, 6, 128, 255], [255, 128, 64, 32, 4, 3, 2, 1]]</repa-texture -->
-    <!-- repa-texture src="webcam"></repa-texture -->
-    <!-- repa-texture ref="demoshader"></repa-texture -->
-<script type="x-shader/x-fragmen[DELETE]t">
-// https://twigl.app/?ol=true&ss=-NOAlYulOVLklxMdxBDx
-void main() {
-  vec2 n,N,q,p=FC.xy/r.y;
-  float S=9.,a,j;
-  for(mat2 m=rotate2D(5.);j++<30.;){
-    p*=m;
-    n*=m;
-    q=p*S+j+n+t;
-    a+=dot(cos(q)/S,r/r);
-    n+=q=sin(q);
-    N+=q/(S+60.);
-    S*=1.2;
-  }
-  o+=pow(max(o-o,(a+.5)*.1*vec4(6,1,2,0)+.003/length(N)),o-o+.45);
-}
-</script>
+    <repa-texture ref="video"></repa-texture>
+    <repa-texture ref="video" type="audio" filter="nearest"></repa-texture>
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
-  col *= texture(tex_avatar, uv).rgb;
+  col *= texture(texture1, vec2(.5*uv.y, 1.0)).rgb;
 
-  float dist = distance(uv, mouse.xy);
-  float circle = smoothstep(.1, .2, dist) * .5 + .5;
-  vec4 acolor = vec4(col * circle, circle);
-  outColor = vec4(acolor);
+  vec3 futas = texture(texture0, uv).rgb;
+
+  col = mix(col, futas, uv.x);
+
+  outColor = vec4(col, 1.0);
 }
   </repa-shader>
   <div>

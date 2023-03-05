@@ -188,6 +188,9 @@ class RepaTexture extends HTMLElement {
   get type() {
     if (this._type) {
       return this._type;
+    } else if (this.hasAttribute('type')) {
+      this._type = this.getAttribute('type');
+      return this._type;
     }
 
     if (this.ref) {
@@ -197,6 +200,8 @@ class RepaTexture extends HTMLElement {
         return 'video';
       } else if (this.ref instanceof HTMLCanvasElement) {
         return 'canvas';
+      } else if (this.ref instanceof HTMLAudioElement) {
+        return 'audio';
       } else if (this.ref.nodeName === 'REPA-SHADER') {
         return 'shader';
       }
@@ -211,13 +216,7 @@ class RepaTexture extends HTMLElement {
     return this.type !== 'raw';
   }
 
-  // Array of Arrays
-  set content(data) {
-    this.ready = true;
-    this._type = 'raw';
-    this._format = 'luminance';
-    this._forceUpdate = true;
-
+  setContent(data) {
     this._width = data[0].length;
     this._height = data.length;
     this._content = new Uint8Array(this._width * this._height);
@@ -227,12 +226,64 @@ class RepaTexture extends HTMLElement {
     });
   }
 
+  set content(data) {
+    this.ready = true;
+    this._type = 'raw';
+    this._format = 'luminance';
+    this._forceUpdate = true;
+
+    this.setContent(data);
+  }
+
   get content() {
     if (this.ref) {
       if (this.type === 'shader') {
         return this.ref.target;
+      } else if (this.type === 'audio') {
+        return this.audioData;
       }
       return this.ref;
+    }
+
+    return this._content;
+  }
+
+  get analyser() {
+    if (this.type !== 'audio' || !this.ref || !this.ref.currentTime) {
+      return this._analyser;
+    }
+
+    if (!this._analyser) {
+      const audioCtx = new AudioContext();
+      const analyser = audioCtx.createAnalyser();
+
+      this._binCount = analyser.frequencyBinCount;
+      this._freqData = new Uint8Array(this._binCount);
+      this._timeData = new Uint8Array(this._binCount);
+
+      const source = audioCtx.createMediaElementSource(this.ref);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      this._analyser = analyser;
+    }
+
+    return this._analyser;
+  }
+
+  get audioData() {
+    // setup
+    this._format = 'luminance';
+    this._filter = 'nearest';
+
+    const analyser = this.analyser;
+    if (analyser) {
+      analyser.getByteFrequencyData(this._freqData);
+      analyser.getByteTimeDomainData(this._timeData);
+
+      this.setContent([this._freqData, this._timeData]);
+    } else {
+      this.setContent([[255, 128, 64, 32, 16, 8, 4, 2], [2, 4, 8, 16, 32, 64, 128, 255]]);
     }
 
     return this._content;
@@ -267,7 +318,8 @@ class RepaTexture extends HTMLElement {
     return this.ready &&
       (this._forceUpdate || (
         this.ref && (
-          (this.ref instanceof HTMLVideoElement && this.ref.readyState === this.ref.HAVE_ENOUGH_DATA) ||
+          (this.ref instanceof HTMLVideoElement && this.ref.readyState >= this.ref.HAVE_ENOUGH_DATA) ||
+          (this.ref instanceof HTMLAudioElement && this.ref.readyState >= this.ref.HAVE_ENOUGH_DATA && !this.ref.paused && !this.ref.ended && this.ref.currentTime) ||
           (this.ref instanceof HTMLCanvasElement)
         )
       )
@@ -283,11 +335,11 @@ class RepaTexture extends HTMLElement {
   }
 
   get magFilter() {
-    return this.getAttribute('mag-filter') || this.getAttribute('filter') || 'linear';
+    return this._filter || this.getAttribute('mag-filter') || this.getAttribute('filter') || 'linear';
   }
 
   get minFilter() {
-    return this.getAttribute('min-filter') || this.getAttribute('filter') || 'linear';
+    return this._filter || this.getAttribute('min-filter') || this.getAttribute('filter') || 'linear';
   }
 
   get wrapS() {

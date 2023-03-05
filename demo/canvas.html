@@ -57,7 +57,7 @@
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
-  col *= texture(texture0, vec2(uv.x, 1.-uv.y)).rgb;
+  col *= texture(texture0, vec2(uv.x, uv.y)).rgb;
 
   float dist = distance(uv, mouse.xy);
   float circle = smoothstep(.1, .2, dist) * .5 + .5;
