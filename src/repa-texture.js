@@ -16,10 +16,9 @@ const isVideo = (src) => {
 };
 
 /* TODO
- * - display content on canvas
  * - ready promise
  **
- * types: image, [video, webcam], [canvas, shader]
+ * types: image, [video, webcam], [canvas, shader], raw
  */
 class RepaTexture extends HTMLElement {
   constructor() {
@@ -34,7 +33,7 @@ class RepaTexture extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap'];
+    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap', 'format'];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -85,6 +84,8 @@ class RepaTexture extends HTMLElement {
     if (this.ref) {
       this.ready = true;
       this._forceUpdate = true;
+    } else if (this.textContent) {
+      this.content = JSON.parse(this.textContent);
     } else {
       this.logger.error('Source cannot be loaded');
     }
@@ -199,21 +200,42 @@ class RepaTexture extends HTMLElement {
       } else if (this.ref.nodeName === 'REPA-SHADER') {
         return 'shader';
       }
+    } else if (this._content) {
+      return 'raw';
     }
 
     return null;
+  }
+
+  get flipY() {
+    return this.type !== 'raw';
+  }
+
+  // Array of Arrays
+  set content(data) {
+    this.ready = true;
+    this._type = 'raw';
+    this._format = 'luminance';
+    this._forceUpdate = true;
+
+    this._width = data[0].length;
+    this._height = data.length;
+    this._content = new Uint8Array(this._width * this._height);
+
+    data.forEach((row, y) => {
+      this._content.set(row, y * this._width);
+    });
   }
 
   get content() {
     if (this.ref) {
       if (this.type === 'shader') {
         return this.ref.target;
-      } else {
-        return this.ref;
       }
+      return this.ref;
     }
 
-    return null;
+    return this._content;
   }
 
   _guessType(src) {
@@ -253,11 +275,11 @@ class RepaTexture extends HTMLElement {
   }
 
   get width() {
-    return this.ref?.videoWidth || this.ref?.width || 0;
+    return this._width || this.ref?.videoWidth || this.ref?.width || 0;
   }
 
   get height() {
-    return this.ref?.videoHeight || this.ref?.height || 0;
+    return this._height || this.ref?.videoHeight || this.ref?.height || 0;
   }
 
   get magFilter() {
@@ -274,6 +296,10 @@ class RepaTexture extends HTMLElement {
 
   get wrapT() {
     return this.getAttribute('wrap-t') || this.getAttribute('wrap') || 'clamp-to-edge';
+  }
+
+  get format() {
+    return this._format || this.getAttribute('format') || 'rgba';
   }
 
   get name() {

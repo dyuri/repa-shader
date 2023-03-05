@@ -244,11 +244,15 @@ class RepaShader extends HTMLElement {
   }
 
   _getWrap(wrap) {
-    return this._gl[wrap.toUpperCase().replaceAll('-', '_')] || this._gl.CLAMP_TO_EDGE;
+    return (wrap && this._gl[wrap.toUpperCase().replaceAll('-', '_')]) || this._gl.CLAMP_TO_EDGE;
   }
 
   _getFilter(filter) {
-    return this._gl[filter.toUpperCase().replaceAll('-', '_')] || this._gl.LINEAR;
+    return (filter && this._gl[filter.toUpperCase().replaceAll('-', '_')]) || this._gl.LINEAR;
+  }
+
+  _getFormat(format) {
+    return (format && this._gl[format.toUpperCase().replaceAll('-', '_')]) || this._gl.RGBA;
   }
 
   _collectTextures() {
@@ -382,7 +386,10 @@ class RepaShader extends HTMLElement {
 
       // update if needed
       if (t.texElement.shouldUpdate) {
-        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, this._gl.RGBA, this._gl.RGBA, this._gl.UNSIGNED_BYTE, t.texElement.update());
+        const format = this._getFormat(t.texElement.format);
+        this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, t.texElement.flipY);
+
+        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, format, t.texElement.width, t.texElement.height, 0, format, this._gl.UNSIGNED_BYTE, t.texElement.update());
       }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
@@ -642,6 +649,11 @@ void main() {
           source = fsEl.textContent.trim();
         }
       }
+    }
+
+    // text content
+    if (!source) {
+      source = Array.from(this.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim();
     }
 
     // fallback demo
