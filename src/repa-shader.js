@@ -18,6 +18,7 @@ const CHUNKS = {
 precision highp float;
 uniform vec2 resolution;
 uniform vec3 mouse;
+uniform vec3 orientation;
 uniform float time;
 uniform float frame;
 `,
@@ -163,6 +164,10 @@ class RepaShader extends HTMLElement {
     this._gl.viewport(0, 0, width, height);
   }
 
+  _onOrientationEvent(e) {
+    this._orientation = [e.alpha, e.beta, e.gamma];
+  }
+
   _onMouseEvent(e) {
     const x = Math.min(Math.max(e.offsetX, 0), this._target.width);
     const y = Math.min(Math.max(e.offsetY, 0), this._target.height);
@@ -291,6 +296,10 @@ class RepaShader extends HTMLElement {
       // TODO touch ?
     }
 
+    if (this.hasAttribute('orientation')) {
+      window.addEventListener('deviceorientation', this._onOrientationEvent.bind(this));
+    }
+
     this.mode = this.getAttribute('mode') || this.mode;
 
     const program = this._gl.createProgram();
@@ -326,6 +335,7 @@ class RepaShader extends HTMLElement {
     this._uniLocation = {};
     this._uniLocation.resolution = this._gl.getUniformLocation(this.program, 'resolution');
     this._uniLocation.mouse = this._gl.getUniformLocation(this.program, 'mouse');
+    this._uniLocation.orientation = this._gl.getUniformLocation(this.program, 'orientation');
     this._uniLocation.time = this._gl.getUniformLocation(this.program, 'time');
     this._uniLocation.frame = this._gl.getUniformLocation(this.program, 'frame');
 
@@ -343,6 +353,7 @@ class RepaShader extends HTMLElement {
 
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
     this._mousePosition= [0, 0, 0];
+    this._orientation = [0, 0, 0];
     this._startTime = Date.now();
     this._frame = 0;
 
@@ -376,6 +387,7 @@ class RepaShader extends HTMLElement {
     this._gl.clear(this._gl.COLOR_BUFFER_BIT);
     this._gl.uniform2fv(this._uniLocation.resolution, [this._target.width, this._target.height]);
     this._gl.uniform3fv(this._uniLocation.mouse, this._mousePosition);
+    this._gl.uniform3fv(this._uniLocation.orientation, this._orientation);
     this._gl.uniform1f(this._uniLocation.time, this._nowTime * .001);
     this._gl.uniform1f(this._uniLocation.frame, this._frame);
 

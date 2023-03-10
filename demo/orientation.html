@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>&lt;repa-shader&gt; demo</title>
+  <script type="module" src="../src/repa-texture.js"></script>
+  <script type="module" src="../src/repa-shader.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: repeating-linear-gradient(45deg, #333, #333 10px, #666 10px, #666 20px);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    #fsinput {
+      width: 90vw;
+      height: 50vh;
+    }
+  </style>
+</head>
+<body>
+  <repa-shader id="demoshader" fs-input="fsinput" alpha orientation width=512 height=512>
+    <repa-texture src="avatar.png" name="tex_avatar" wrap="mirrored_repeat"></repa-texture>
+void main() {
+  vec2 uv = gl_FragCoord.xy / resolution.xy;
+  vec3 col = .5 + .5 * cos(uv.xyx + time + vec3(0, 2, 4));
+  col *= texture(tex_avatar, uv).rgb;
+
+  float dist = distance(uv, .5 - orientation.zy / 180.);
+  float circle = smoothstep(.1, .2, dist) * .5 + .5;
+  vec4 acolor = vec4(col * circle, circle);
+  outColor = vec4(acolor);
+}
+  </repa-shader>
+  <div>
+    <textarea id="fsinput"></textarea>
+  </div>
+  <button id="update">Update</button>
+<script>
+const updateButton = document.getElementById('update');
+updateButton.addEventListener('click', () => {
+  const fsinput = document.getElementById('fsinput');
+  const shader = document.querySelector('repa-shader');
+  shader.render(fsinput.value);
+});
+</script>
+</body>
+</html>
