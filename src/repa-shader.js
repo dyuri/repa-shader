@@ -289,34 +289,34 @@ class RepaShader extends HTMLElement {
     this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAG_FILTER, this._gl.NEAREST);
     this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
     this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_R, this._gl.CLAMP_TO_EDGE);
+    // ???
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_BASE_LEVEL, 0);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAX_LEVEL, 0);
+
+    let size = 32;
+    let t3data = new Uint8Array(size * size * size);
+
+    for (let i = 0; i < size; i++) {
+      for (let j = 0; j < size; j++) {
+        for (let k = 0; k < size; k++) {
+          let index = i * size * size + j * size + k;
+          t3data[index] = (i * j * k) % 255;
+        }
+      }
+    }
 
     this._gl.texImage3D(
       this._gl.TEXTURE_3D, // target
       0, // level
       this._gl.R8, // format - red8 (1byte)
-      3, // width
-      3, // height
-      3, // depth
+      size, // width
+      size, // height
+      size, // depth
       0, // border
       this._gl.RED, // format - red
       this._gl.UNSIGNED_BYTE, // type - unsigned byte
-      new Uint8Array([
-        0, 0, 0,
-        0, 127, 0,
-        0, 0, 0,
-
-        0, 127, 0,
-        127, 255, 127,
-        0, 127, 0,
-
-        0, 0, 0,
-        0, 127, 0,
-        0, 0, 0,
-
-        127, 0, 127,
-        0, 0, 0,
-        127, 0, 127,
-      ]) // data
+      t3data // data
     );
 
     this._textures3d = [];
@@ -324,9 +324,9 @@ class RepaShader extends HTMLElement {
       texture,
       texElement: {
         name: 'test3d',
-        width: 3,
-        height: 3,
-        depth: 3,
+        width: size,
+        height: size,
+        depth: size,
       },
     });
     // TODO end of 3d texture experiment
