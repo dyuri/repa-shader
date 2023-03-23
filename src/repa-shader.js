@@ -16,6 +16,7 @@ const CHUNKS = {
 #define t time
 #define f frame
 precision highp float;
+precision highp sampler3D;
 uniform vec2 resolution;
 uniform vec3 mouse;
 uniform vec3 orientation;
@@ -280,6 +281,55 @@ class RepaShader extends HTMLElement {
         texElement: t,
       });
     });
+
+    // TODO 3d texture experiment
+    let texture = this._gl.createTexture();
+    this._gl.bindTexture(this._gl.TEXTURE_3D, texture);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MIN_FILTER, this._gl.NEAREST);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAG_FILTER, this._gl.NEAREST);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
+    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+
+    this._gl.texImage3D(
+      this._gl.TEXTURE_3D, // target
+      0, // level
+      this._gl.R8, // format - red8 (1byte)
+      3, // width
+      3, // height
+      3, // depth
+      0, // border
+      this._gl.RED, // format - red
+      this._gl.UNSIGNED_BYTE, // type - unsigned byte
+      new Uint8Array([
+        0, 0, 0,
+        0, 127, 0,
+        0, 0, 0,
+
+        0, 127, 0,
+        127, 255, 127,
+        0, 127, 0,
+
+        0, 0, 0,
+        0, 127, 0,
+        0, 0, 0,
+
+        127, 0, 127,
+        0, 0, 0,
+        127, 0, 127,
+      ]) // data
+    );
+
+    this._textures3d = [];
+    this._textures3d.push({
+      texture,
+      texElement: {
+        name: 'test3d',
+        width: 3,
+        height: 3,
+        depth: 3,
+      },
+    });
+    // TODO end of 3d texture experiment
   }
 
   async reset(time) {
@@ -351,6 +401,13 @@ class RepaShader extends HTMLElement {
       t.texElement.forceUpdate();
     });
 
+    // TODO 3d texture experiment
+    this._textures3d.forEach((t) => {
+      this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
+      this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
+      // TODO
+    });
+
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
     this._mousePosition= [0, 0, 0];
     this._orientation = [0, 0, 0];
@@ -406,6 +463,18 @@ class RepaShader extends HTMLElement {
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
       this._gl.uniform2fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1]);
+    });
+
+    // TODO 3d texture experiment
+    this._textures3d.forEach((t, i) => {
+      this._gl.activeTexture(this._gl.TEXTURE0 + i + this.mrt + this._textures.length);
+      this._gl.bindTexture(this._gl.TEXTURE_3D, t.texture);
+      this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, 0);
+
+      // TODO update, etc
+
+      this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt + this._textures.length);
+      this._gl.uniform3fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1, t.texElement.depth || 1]);
     });
 
     this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
@@ -522,6 +591,7 @@ void main() {
   }
 
   get postFS() {
+    // TODO 3d texture experiment
     return `#version 300 es
 precision mediump float;
 uniform sampler2D drawTexture;
@@ -564,6 +634,13 @@ void main() {
       return `
   uniform sampler2D ${t.texElement.name};
   uniform vec2 ${t.texElement.name}_d;
+  `;
+    }).join('') +
+    // TODO 3d texture experiment
+    this._textures3d.map(t => {
+      return `
+  uniform sampler3D ${t.texElement.name};
+  uniform vec3 ${t.texElement.name}_d;
   `;
     }).join('');
   }
