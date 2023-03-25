@@ -33,7 +33,7 @@ class RepaTexture extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap', 'format'];
+    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap-r', 'wrap', 'format'];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -86,8 +86,29 @@ class RepaTexture extends HTMLElement {
       this._forceUpdate = true;
     } else if (this.textContent) {
       this.content = JSON.parse(this.textContent);
+    } else if (this.t3d) { // TODO 3d texture experiment
+      let size = 32;
+      this._width = size;
+      this._height = size;
+      this._depth = size;
+
+      let t3data = new Uint8Array(size * size * size);
+
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          for (let k = 0; k < size; k++) {
+            let index = i * size * size + j * size + k;
+            t3data[index] = (i * j * k) % 255;
+          }
+        }
+      }
+
+      this._content = t3data;
+      this._forceUpdate = true;
+      this._format = 'luminance';
+      this.ready = true;
     } else {
-      this.logger.error('Source cannot be loaded');
+      this.logger.error('Texture content cannot be loaded!');
     }
   }
 
@@ -212,8 +233,12 @@ class RepaTexture extends HTMLElement {
     return null;
   }
 
+  get t3d() {
+    return this.hasAttribute('t3d');
+  }
+
   get flipY() {
-    return this.type !== 'raw';
+    return !this.t3d && this.type !== 'raw';
   }
 
   setContent(data) {
@@ -334,6 +359,10 @@ class RepaTexture extends HTMLElement {
     return this._height || this.ref?.videoHeight || this.ref?.height || 0;
   }
 
+  get depth() {
+    return this._depth || this.ref?.depth || 0;
+  }
+
   get magFilter() {
     return this._filter || this.getAttribute('mag-filter') || this.getAttribute('filter') || 'linear';
   }
@@ -348,6 +377,10 @@ class RepaTexture extends HTMLElement {
 
   get wrapT() {
     return this.getAttribute('wrap-t') || this.getAttribute('wrap') || 'clamp-to-edge';
+  }
+
+  get wrapR() {
+    return this.getAttribute('wrap-r') || this.getAttribute('wrap') || 'clamp-to-edge';
   }
 
   get format() {

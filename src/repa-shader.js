@@ -263,8 +263,9 @@ class RepaShader extends HTMLElement {
 
   _collectTextures() {
     this._textures = [];
+    this._textures3d = [];
 
-    this.querySelectorAll('repa-texture').forEach(t => {
+    this.querySelectorAll('repa-texture:not([t3d])').forEach(t => {
       const texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
 
@@ -282,54 +283,22 @@ class RepaShader extends HTMLElement {
       });
     });
 
-    // TODO 3d texture experiment
-    let texture = this._gl.createTexture();
-    this._gl.bindTexture(this._gl.TEXTURE_3D, texture);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MIN_FILTER, this._gl.NEAREST);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAG_FILTER, this._gl.NEAREST);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_R, this._gl.CLAMP_TO_EDGE);
-    // ???
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_BASE_LEVEL, 0);
-    this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAX_LEVEL, 0);
+    this.querySelectorAll('repa-texture[t3d]').forEach(t => {
+      let texture = this._gl.createTexture();
+      this._gl.bindTexture(this._gl.TEXTURE_3D, texture);
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MIN_FILTER, this._getFilter(t.minFilter));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAG_FILTER, this._getFilter(t.magFilter));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_S, this._getWrap(t.wrapS));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_T, this._getWrap(t.wrapT));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_R, this._getWrap(t.wrapR));
 
-    let size = 32;
-    let t3data = new Uint8Array(size * size * size);
+      this._gl.texImage3D(this._gl.TEXTURE_3D, 0, this._gl.RGBA, 1, 1, 1, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, new Uint8Array([64, 255, 128, 255]));
 
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        for (let k = 0; k < size; k++) {
-          let index = i * size * size + j * size + k;
-          t3data[index] = (i * j * k) % 255;
-        }
-      }
-    }
-
-    this._gl.texImage3D(
-      this._gl.TEXTURE_3D, // target
-      0, // level
-      this._gl.R8, // format - red8 (1byte)
-      size, // width
-      size, // height
-      size, // depth
-      0, // border
-      this._gl.RED, // format - red
-      this._gl.UNSIGNED_BYTE, // type - unsigned byte
-      t3data // data
-    );
-
-    this._textures3d = [];
-    this._textures3d.push({
-      texture,
-      texElement: {
-        name: 'test3d',
-        width: size,
-        height: size,
-        depth: size,
-      },
+      this._textures3d.push({
+        texture,
+        texElement: t
+      });
     });
-    // TODO end of 3d texture experiment
   }
 
   async reset(time) {
@@ -375,8 +344,6 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    // TODO sound?
-
     if (this._program) {
       this._gl.deleteProgram(this._program);
     }
@@ -401,11 +368,10 @@ class RepaShader extends HTMLElement {
       t.texElement.forceUpdate();
     });
 
-    // TODO 3d texture experiment
     this._textures3d.forEach((t) => {
       this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
       this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
-      // TODO
+      t.texElement.forceUpdate();
     });
 
     this._attLocation = this._gl.getAttribLocation(this.program, 'position');
@@ -465,13 +431,17 @@ class RepaShader extends HTMLElement {
       this._gl.uniform2fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1]);
     });
 
-    // TODO 3d texture experiment
     this._textures3d.forEach((t, i) => {
       this._gl.activeTexture(this._gl.TEXTURE0 + i + this.mrt + this._textures.length);
       this._gl.bindTexture(this._gl.TEXTURE_3D, t.texture);
-      this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, 0);
 
-      // TODO update, etc
+      // update if needed
+      if (t.texElement.shouldUpdate) {
+        const format = this._getFormat(t.texElement.format);
+        this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, 0);
+
+        this._gl.texImage3D(this._gl.TEXTURE_3D, 0, format, t.texElement.width, t.texElement.height, t.texElement.depth, 0, format, this._gl.UNSIGNED_BYTE, t.texElement.update());
+      }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt + this._textures.length);
       this._gl.uniform3fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1, t.texElement.depth || 1]);
@@ -591,7 +561,6 @@ void main() {
   }
 
   get postFS() {
-    // TODO 3d texture experiment
     return `#version 300 es
 precision mediump float;
 uniform sampler2D drawTexture;
@@ -636,7 +605,6 @@ void main() {
   uniform vec2 ${t.texElement.name}_d;
   `;
     }).join('') +
-    // TODO 3d texture experiment
     this._textures3d.map(t => {
       return `
   uniform sampler3D ${t.texElement.name};

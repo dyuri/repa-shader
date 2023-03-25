@@ -25,11 +25,12 @@
 <body>
   <repa-shader id="demoshader" fs-input="fsinput" alpha mouse width=512 height=512>
     <repa-texture src="avatar.png" name="tex_avatar" wrap="mirrored_repeat"></repa-texture>
+    <repa-texture t3d name="test3d" filter="nearest"></repa-texture>
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = texture(tex_avatar, uv).rgb;
 
-  col = texture(test3d, vec3(uv.xy, mouse.x)).rrr;
+  col *= texture(test3d, vec3(uv.xy, mouse.x)).rrr;
 
   float dist = distance(uv, mouse.xy);
   float circle = smoothstep(.025, .026, dist) * .5 + .5;
