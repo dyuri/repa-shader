@@ -1,3 +1,10 @@
+// @ts-check
+
+/**
+ * createLogger - creates a logger function
+ *
+ * @param {string[]} pfx - logger prefix
+ */
 const createLogger = pfx => {
   return {
     info: (...args) => console.info(...pfx, ...args),
@@ -56,6 +63,9 @@ class RepaShader extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.logger = createLogger(["%c[repa-shader]", "background: #282828; color: #b8bb26"]);
     this._snippets = {};
+    this._postProgram = null;
+    /** @type {WebGL2RenderingContext} */
+    this._gl = null;
   }
 
   connectedCallback() {
@@ -67,7 +77,7 @@ class RepaShader extends HTMLElement {
 
     if (!this._gl) {
       const glopts = {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
-      this._gl = this._target.getContext('webgl2', glopts);
+      this._gl = this._target.getContext('webgl2', glopts); // @ts-ignore
       if (!this._gl) {
         this.logger.error("WebGL2 not supported");
         return;
@@ -101,6 +111,12 @@ class RepaShader extends HTMLElement {
     // TODO stop animation
   }
 
+  /**
+   * render - loads the source if not provided and renders the shader
+   *
+   * @param {string} [source] - fragment shader source
+   * @param {Number} [time] - timestamp to render for
+   */
   async render(source, time) {
     if (!source) {
       source = await this.getFragmentShaderSource();
@@ -109,6 +125,9 @@ class RepaShader extends HTMLElement {
     this.reset(time);
   }
 
+  /**
+   * @return {string}
+   */
   get snippetPrefix() {
     if (this.hasAttribute('snippet-prefix')) {
       return this.getAttribute('snippet-prefix');
@@ -124,6 +143,11 @@ class RepaShader extends HTMLElement {
     return path + '/snippets';
   }
 
+  /**
+   * loadSnippet - loads a snippet (prepending `snippetPrefix`)
+   *
+   * @param {string} name - snippet script name
+   */
   async loadSnippet(name) {
     let url = name;
     if (!url.startsWith('http')) {
@@ -139,6 +163,12 @@ class RepaShader extends HTMLElement {
     this._snippets[name] = text;
   }
 
+  /**
+   * getSnippet - returns a snippet (loading it if necessary)
+   *
+   * @param {string} name
+   * @return {string} - snippet source
+   */
   async getSnippet(name) {
     if (!this._snippets[name]) {
       await this.loadSnippet(name);
@@ -147,6 +177,11 @@ class RepaShader extends HTMLElement {
     return this._snippets[name];
   }
 
+  /**
+   * _getSnippets - load all the snippets from the `snippets` attribute
+   *
+   * @return {<Promise>} - resolves when all snippets are loaded
+   */
   async _getSnippets() {
     if (!this.hasAttribute('snippets')) {
       return '';
@@ -158,6 +193,9 @@ class RepaShader extends HTMLElement {
     return await Promise.all(promises).then(snippets => snippets.join('\n'));
   }
 
+  /**
+   * _resizeTarget - resizes the current target (and the GL viewport) canvas based on its current size
+   */
   _resizeTarget() {
     const {width, height} = this._target.getBoundingClientRect();
     this._target.width = width;
@@ -165,6 +203,11 @@ class RepaShader extends HTMLElement {
     this._gl.viewport(0, 0, width, height);
   }
 
+  /**
+   * _onOrientationEvent - handles orientation events
+   *
+   * @param {Event} e
+   */
   _onOrientationEvent(e) {
     this._orientation = [e.alpha, e.beta, e.gamma];
   }
