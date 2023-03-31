@@ -25,7 +25,7 @@
 <body>
   <repa-shader id="demoshader" fs-input="fsinput" alpha mouse width=512 height=512>
     <repa-texture src="avatar.png" name="tex_avatar" wrap="mirrored_repeat"></repa-texture>
-    <repa-texture t3d name="test3d" filter="nearest"></repa-texture>
+    <repa-texture t3d src="3dt.png" name="test3d" filter="linear" width=32 height=32 depth=32></repa-texture>
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = texture(tex_avatar, uv).rgb;

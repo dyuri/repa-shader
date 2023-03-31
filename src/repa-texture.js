@@ -352,15 +352,15 @@ class RepaTexture extends HTMLElement {
   }
 
   get width() {
-    return this._width || this.ref?.videoWidth || this.ref?.width || 0;
+    return +(this._width || this.getAttribute("width") || this.ref?.videoWidth || this.ref?.width || 0);
   }
 
   get height() {
-    return this._height || this.ref?.videoHeight || this.ref?.height || 0;
+    return +(this._height || this.getAttribute("height") || this.ref?.videoHeight || this.ref?.height || 0);
   }
 
   get depth() {
-    return this._depth || this.ref?.depth || 0;
+    return +(this._depth || this.getAttribute("depth") || this.ref?.depth || 0);
   }
 
   get magFilter() {
