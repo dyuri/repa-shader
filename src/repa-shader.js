@@ -77,7 +77,8 @@ class RepaShader extends HTMLElement {
 
     if (!this._gl) {
       const glopts = {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
-      this._gl = this._target.getContext('webgl2', glopts); // @ts-ignore
+      // @ts-ignore
+      this._gl = this._target.getContext('webgl2', glopts);
       if (!this._gl) {
         this.logger.error("WebGL2 not supported");
         return;
@@ -167,7 +168,7 @@ class RepaShader extends HTMLElement {
    * getSnippet - returns a snippet (loading it if necessary)
    *
    * @param {string} name
-   * @return {string} - snippet source
+   * @return {Promise<string>} - snippet source
    */
   async getSnippet(name) {
     if (!this._snippets[name]) {
@@ -180,7 +181,7 @@ class RepaShader extends HTMLElement {
   /**
    * _getSnippets - load all the snippets from the `snippets` attribute
    *
-   * @return {<Promise>} - resolves when all snippets are loaded
+   * @return {Promise} - resolves when all snippets are loaded
    */
   async _getSnippets() {
     if (!this.hasAttribute('snippets')) {
@@ -206,12 +207,17 @@ class RepaShader extends HTMLElement {
   /**
    * _onOrientationEvent - handles orientation events
    *
-   * @param {Event} e
+   * @param {DeviceOrientationEvent} e
    */
   _onOrientationEvent(e) {
     this._orientation = [e.alpha, e.beta, e.gamma];
   }
 
+  /**
+   * _onMouseEvent - handles mouse events
+   *
+   * @param {MouseEvent} e
+   */
   _onMouseEvent(e) {
     const x = Math.min(Math.max(e.offsetX, 0), this._target.width);
     const y = Math.min(Math.max(e.offsetY, 0), this._target.height);
@@ -312,7 +318,7 @@ class RepaShader extends HTMLElement {
     this._textures = [];
     this._textures3d = [];
 
-    this.querySelectorAll('repa-texture:not([t3d])').forEach(t => {
+    this.querySelectorAll('repa-texture:not([t3d])').forEach((/** @type {RepaTexture} */ t) => {
       const texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
 
@@ -330,7 +336,7 @@ class RepaShader extends HTMLElement {
       });
     });
 
-    this.querySelectorAll('repa-texture[t3d]').forEach(t => {
+    this.querySelectorAll('repa-texture[t3d]').forEach((/** @type {RepaTexture} */ t) => {
       let texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_3D, texture);
       this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MIN_FILTER, this._getFilter(t.minFilter));
@@ -390,8 +396,8 @@ class RepaShader extends HTMLElement {
       return;
     }
 
-    if (this._program) {
-      this._gl.deleteProgram(this._program);
+    if (this.program) {
+      this._gl.deleteProgram(this.program);
     }
     this.program = program;
     this._gl.useProgram(this.program);
@@ -738,10 +744,11 @@ void main() {
     let source = '';
 
     // text area editor
+    /** @type {HTMLTextAreaElement} */
     let fsInput = this.shadowRoot.querySelector('textarea[name="fragment-shader"]') || this.querySelector('textarea[name="fragment-shader"]');
     if (!fsInput) {
       const fsInputId = this.getAttribute('fs-input');
-      fsInput = document.getElementById(fsInputId);
+      fsInput = /** @type {HTMLTextAreaElement} */ (document.getElementById(fsInputId));
     }
     if (fsInput) {
       source = fsInput.value;
