@@ -86,29 +86,8 @@ class RepaTexture extends HTMLElement {
       this._forceUpdate = true;
     } else if (this.textContent) {
       this.simpleContent(JSON.parse(this.textContent));
-    } else if (this.t3d) { // TODO 3d texture experiment
-      let size = 32;
-      this._width = size;
-      this._height = size;
-      this._depth = size;
-
-      let t3data = new Uint8Array(size * size * size);
-
-      for (let i = 0; i < size; i++) {
-        for (let j = 0; j < size; j++) {
-          for (let k = 0; k < size; k++) {
-            let index = i * size * size + j * size + k;
-            t3data[index] = (i * j * k) % 255;
-          }
-        }
-      }
-
-      this._content = t3data;
-      this._forceUpdate = true;
-      this._format = 'luminance';
-      this.ready = true;
     } else {
-      this.logger.error('Texture content cannot be loaded!');
+      this.logger.warn('Texture content cannot be loaded!');
     }
   }
 
@@ -386,6 +365,14 @@ class RepaTexture extends HTMLElement {
 
   get format() {
     return this._format || this.getAttribute('format') || 'rgba';
+  }
+
+  get internalFormat() {
+    return this._internalFormat || this.getAttribute('internal-format') || this.format;
+  }
+
+  get dataType() {
+    return this._dataType || this.getAttribute('data-type') || 'unsigned-byte';
   }
 
   get name() {

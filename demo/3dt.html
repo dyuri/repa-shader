@@ -26,11 +26,13 @@
   <repa-shader id="demoshader" fs-input="fsinput" alpha mouse width=512 height=512>
     <repa-texture src="avatar.png" name="tex_avatar" wrap="mirrored_repeat"></repa-texture>
     <repa-texture t3d src="3dt.png" name="test3d" filter="linear" width=32 height=32 depth=32></repa-texture>
+    <repa-texture t3d name="generated" filter="linear" width=32 height=32 depth=32></repa-texture>
 void main() {
   vec2 uv = gl_FragCoord.xy / resolution.xy;
   vec3 col = texture(tex_avatar, uv).rgb;
 
   col *= texture(test3d, vec3(uv.xy, mouse.x)).rrr;
+  col *= texture(generated, vec3(uv.xy, mouse.y)).rgb;
 
   float dist = distance(uv, mouse.xy);
   float circle = smoothstep(.025, .026, dist) * .5 + .5;
@@ -49,6 +51,26 @@ updateButton.addEventListener('click', () => {
   const shader = document.querySelector('repa-shader');
   shader.render(fsinput.value);
 });
+
+setTimeout(() => {
+  // generate texture data
+  const generated3DT = document.querySelector('repa-texture[name="generated"]');
+  const size = 32;
+  const t3data = new Uint8Array(size * size * size * 4);
+  for (let i = 0; i < size; i++) {
+    for (let j = 0; j < size; j++) {
+      for (let k = 0; k < size; k++) {
+        let index = i * size * size + j * size + k;
+        t3data[index*4] = i * 4 % 255;
+        t3data[index*4+1] = j * 4 % 255;
+        t3data[index*4+2] = k * 4 % 255;
+        t3data[index*4+3] = 255;
+      }
+    }
+  }
+
+  generated3DT.content = t3data;
+}, 100);
 </script>
 </body>
 </html>

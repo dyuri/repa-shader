@@ -304,6 +304,10 @@ class RepaShader extends HTMLElement {
     return (format && this._gl[format.toUpperCase().replaceAll('-', '_')]) || this._gl.RGBA;
   }
 
+  _getType(type) {
+    return (type && this._gl[type.toUpperCase().replaceAll('-', '_')]) || this._gl.UNSIGNED_BYTE;
+  }
+
   _collectTextures() {
     this._textures = [];
     this._textures3d = [];
@@ -464,9 +468,12 @@ class RepaShader extends HTMLElement {
       // update if needed
       if (t.texElement.shouldUpdate) {
         const format = this._getFormat(t.texElement.format);
+        const internalFormat = this._getFormat(t.texElement.internalFormat);
+        const type = this._getType(t.texElement.dataType);
+
         this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, t.texElement.flipY);
 
-        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, format, t.texElement.width, t.texElement.height, 0, format, this._gl.UNSIGNED_BYTE, t.texElement.update());
+        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, internalFormat, t.texElement.width, t.texElement.height, 0, format, type, t.texElement.update());
       }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
@@ -480,9 +487,12 @@ class RepaShader extends HTMLElement {
       // update if needed
       if (t.texElement.shouldUpdate) {
         const format = this._getFormat(t.texElement.format);
+        const internalFormat = this._getFormat(t.texElement.internalFormat);
+        const type = this._getType(t.texElement.dataType);
+
         this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, 0);
 
-        this._gl.texImage3D(this._gl.TEXTURE_3D, 0, format, t.texElement.width, t.texElement.height, t.texElement.depth, 0, format, this._gl.UNSIGNED_BYTE, t.texElement.update());
+        this._gl.texImage3D(this._gl.TEXTURE_3D, 0, internalFormat, t.texElement.width, t.texElement.height, t.texElement.depth, 0, format, type, t.texElement.update());
       }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt + this._textures.length);
