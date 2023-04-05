@@ -383,7 +383,6 @@ class RepaShader extends HTMLElement {
       const msg = this._gl.getProgramInfoLog(program);
       this.logger.error("Program link error: ", msg);
       // TODO error callback
-      program = null;
       return;
     }
 

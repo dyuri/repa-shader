@@ -85,7 +85,7 @@ class RepaTexture extends HTMLElement {
       this.ready = true;
       this._forceUpdate = true;
     } else if (this.textContent) {
-      this.content = JSON.parse(this.textContent);
+      this.simpleContent(JSON.parse(this.textContent));
     } else if (this.t3d) { // TODO 3d texture experiment
       let size = 32;
       this._width = size;
@@ -241,23 +241,24 @@ class RepaTexture extends HTMLElement {
     return !this.t3d && this.type !== 'raw';
   }
 
-  setContent(data) {
+  simpleContent(data) {
+    this._format = 'luminance';
     this._width = data[0].length;
     this._height = data.length;
-    this._content = new Uint8Array(this._width * this._height);
+    const content = new Uint8Array(this._width * this._height);
 
     data.forEach((row, y) => {
-      this._content.set(row, y * this._width);
+      content.set(row, y * this._width);
     });
+
+    this.content = content;
   }
 
   set content(data) {
     this.ready = true;
-    this._type = 'raw';
-    this._format = 'luminance';
     this._forceUpdate = true;
 
-    this.setContent(data);
+    this._content = data;
   }
 
   get content() {
@@ -306,9 +307,9 @@ class RepaTexture extends HTMLElement {
       analyser.getByteFrequencyData(this._freqData);
       analyser.getByteTimeDomainData(this._timeData);
 
-      this.setContent([this._freqData, this._timeData]);
+      this.simpleContent([this._freqData, this._timeData]);
     } else {
-      this.setContent([[255, 128, 64, 32, 16, 8, 4, 2], [2, 4, 8, 16, 32, 64, 128, 255]]);
+      this.simpleContent([[255, 128, 64, 32, 16, 8, 4, 2], [2, 4, 8, 16, 32, 64, 128, 255]]);
     }
 
     return this._content;
