@@ -33,7 +33,7 @@ class RepaTexture extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap', 'format'];
+    return ['src', 'type', 'mag-filter', 'min-filter', 'filter', 'wrap-s', 'wrap-t', 'wrap-r', 'wrap', 'format'];
   }
 
   attributeChangedCallback(name, oldValue, newValue) {
@@ -85,9 +85,9 @@ class RepaTexture extends HTMLElement {
       this.ready = true;
       this._forceUpdate = true;
     } else if (this.textContent) {
-      this.content = JSON.parse(this.textContent);
+      this.simpleContent(JSON.parse(this.textContent));
     } else {
-      this.logger.error('Source cannot be loaded');
+      this.logger.warn('Texture content cannot be loaded!');
     }
   }
 
@@ -212,27 +212,32 @@ class RepaTexture extends HTMLElement {
     return null;
   }
 
-  get flipY() {
-    return this.type !== 'raw';
+  get t3d() {
+    return this.hasAttribute('t3d');
   }
 
-  setContent(data) {
+  get flipY() {
+    return !this.t3d && this.type !== 'raw';
+  }
+
+  simpleContent(data) {
+    this._format = 'luminance';
     this._width = data[0].length;
     this._height = data.length;
-    this._content = new Uint8Array(this._width * this._height);
+    const content = new Uint8Array(this._width * this._height);
 
     data.forEach((row, y) => {
-      this._content.set(row, y * this._width);
+      content.set(row, y * this._width);
     });
+
+    this.content = content;
   }
 
   set content(data) {
     this.ready = true;
-    this._type = 'raw';
-    this._format = 'luminance';
     this._forceUpdate = true;
 
-    this.setContent(data);
+    this._content = data;
   }
 
   get content() {
@@ -281,9 +286,9 @@ class RepaTexture extends HTMLElement {
       analyser.getByteFrequencyData(this._freqData);
       analyser.getByteTimeDomainData(this._timeData);
 
-      this.setContent([this._freqData, this._timeData]);
+      this.simpleContent([this._freqData, this._timeData]);
     } else {
-      this.setContent([[255, 128, 64, 32, 16, 8, 4, 2], [2, 4, 8, 16, 32, 64, 128, 255]]);
+      this.simpleContent([[255, 128, 64, 32, 16, 8, 4, 2], [2, 4, 8, 16, 32, 64, 128, 255]]);
     }
 
     return this._content;
@@ -327,11 +332,15 @@ class RepaTexture extends HTMLElement {
   }
 
   get width() {
-    return this._width || this.ref?.videoWidth || this.ref?.width || 0;
+    return +(this._width || this.getAttribute("width") || this.ref?.videoWidth || this.ref?.width || 0);
   }
 
   get height() {
-    return this._height || this.ref?.videoHeight || this.ref?.height || 0;
+    return +(this._height || this.getAttribute("height") || this.ref?.videoHeight || this.ref?.height || 0);
+  }
+
+  get depth() {
+    return +(this._depth || this.getAttribute("depth") || this.ref?.depth || 0);
   }
 
   get magFilter() {
@@ -350,8 +359,20 @@ class RepaTexture extends HTMLElement {
     return this.getAttribute('wrap-t') || this.getAttribute('wrap') || 'clamp-to-edge';
   }
 
+  get wrapR() {
+    return this.getAttribute('wrap-r') || this.getAttribute('wrap') || 'clamp-to-edge';
+  }
+
   get format() {
     return this._format || this.getAttribute('format') || 'rgba';
+  }
+
+  get internalFormat() {
+    return this._internalFormat || this.getAttribute('internal-format') || this.format;
+  }
+
+  get dataType() {
+    return this._dataType || this.getAttribute('data-type') || 'unsigned-byte';
   }
 
   get name() {

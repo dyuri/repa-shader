@@ -1,3 +1,10 @@
+// @ts-check
+
+/**
+ * createLogger - creates a logger function
+ *
+ * @param {string[]} pfx - logger prefix
+ */
 const createLogger = pfx => {
   return {
     info: (...args) => console.info(...pfx, ...args),
@@ -16,6 +23,7 @@ const CHUNKS = {
 #define t time
 #define f frame
 precision highp float;
+precision highp sampler3D;
 uniform vec2 resolution;
 uniform vec3 mouse;
 uniform vec3 orientation;
@@ -55,6 +63,9 @@ class RepaShader extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     this.logger = createLogger(["%c[repa-shader]", "background: #282828; color: #b8bb26"]);
     this._snippets = {};
+    this._postProgram = null;
+    /** @type {WebGL2RenderingContext} */
+    this._gl = null;
   }
 
   connectedCallback() {
@@ -66,7 +77,7 @@ class RepaShader extends HTMLElement {
 
     if (!this._gl) {
       const glopts = {alpha: this.hasAttribute('alpha'), preserveDrawingBuffer: true};
-      this._gl = this._target.getContext('webgl2', glopts);
+      this._gl = this._target.getContext('webgl2', glopts); // @ts-ignore
       if (!this._gl) {
         this.logger.error("WebGL2 not supported");
         return;
@@ -100,6 +111,12 @@ class RepaShader extends HTMLElement {
     // TODO stop animation
   }
 
+  /**
+   * render - loads the source if not provided and renders the shader
+   *
+   * @param {string} [source] - fragment shader source
+   * @param {Number} [time] - timestamp to render for
+   */
   async render(source, time) {
     if (!source) {
       source = await this.getFragmentShaderSource();
@@ -108,6 +125,9 @@ class RepaShader extends HTMLElement {
     this.reset(time);
   }
 
+  /**
+   * @return {string}
+   */
   get snippetPrefix() {
     if (this.hasAttribute('snippet-prefix')) {
       return this.getAttribute('snippet-prefix');
@@ -123,6 +143,11 @@ class RepaShader extends HTMLElement {
     return path + '/snippets';
   }
 
+  /**
+   * loadSnippet - loads a snippet (prepending `snippetPrefix`)
+   *
+   * @param {string} name - snippet script name
+   */
   async loadSnippet(name) {
     let url = name;
     if (!url.startsWith('http')) {
@@ -138,6 +163,12 @@ class RepaShader extends HTMLElement {
     this._snippets[name] = text;
   }
 
+  /**
+   * getSnippet - returns a snippet (loading it if necessary)
+   *
+   * @param {string} name
+   * @return {string} - snippet source
+   */
   async getSnippet(name) {
     if (!this._snippets[name]) {
       await this.loadSnippet(name);
@@ -146,6 +177,11 @@ class RepaShader extends HTMLElement {
     return this._snippets[name];
   }
 
+  /**
+   * _getSnippets - load all the snippets from the `snippets` attribute
+   *
+   * @return {<Promise>} - resolves when all snippets are loaded
+   */
   async _getSnippets() {
     if (!this.hasAttribute('snippets')) {
       return '';
@@ -157,6 +193,9 @@ class RepaShader extends HTMLElement {
     return await Promise.all(promises).then(snippets => snippets.join('\n'));
   }
 
+  /**
+   * _resizeTarget - resizes the current target (and the GL viewport) canvas based on its current size
+   */
   _resizeTarget() {
     const {width, height} = this._target.getBoundingClientRect();
     this._target.width = width;
@@ -164,6 +203,11 @@ class RepaShader extends HTMLElement {
     this._gl.viewport(0, 0, width, height);
   }
 
+  /**
+   * _onOrientationEvent - handles orientation events
+   *
+   * @param {Event} e
+   */
   _onOrientationEvent(e) {
     this._orientation = [e.alpha, e.beta, e.gamma];
   }
@@ -260,10 +304,15 @@ class RepaShader extends HTMLElement {
     return (format && this._gl[format.toUpperCase().replaceAll('-', '_')]) || this._gl.RGBA;
   }
 
+  _getType(type) {
+    return (type && this._gl[type.toUpperCase().replaceAll('-', '_')]) || this._gl.UNSIGNED_BYTE;
+  }
+
   _collectTextures() {
     this._textures = [];
+    this._textures3d = [];
 
-    this.querySelectorAll('repa-texture').forEach(t => {
+    this.querySelectorAll('repa-texture:not([t3d])').forEach(t => {
       const texture = this._gl.createTexture();
       this._gl.bindTexture(this._gl.TEXTURE_2D, texture);
 
@@ -278,6 +327,23 @@ class RepaShader extends HTMLElement {
       this._textures.push({
         texture,
         texElement: t,
+      });
+    });
+
+    this.querySelectorAll('repa-texture[t3d]').forEach(t => {
+      let texture = this._gl.createTexture();
+      this._gl.bindTexture(this._gl.TEXTURE_3D, texture);
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MIN_FILTER, this._getFilter(t.minFilter));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_MAG_FILTER, this._getFilter(t.magFilter));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_S, this._getWrap(t.wrapS));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_T, this._getWrap(t.wrapT));
+      this._gl.texParameteri(this._gl.TEXTURE_3D, this._gl.TEXTURE_WRAP_R, this._getWrap(t.wrapR));
+
+      this._gl.texImage3D(this._gl.TEXTURE_3D, 0, this._gl.RGBA, 1, 1, 1, 0, this._gl.RGBA, this._gl.UNSIGNED_BYTE, new Uint8Array([64, 255, 128, 255]));
+
+      this._textures3d.push({
+        texture,
+        texElement: t
       });
     });
   }
@@ -321,11 +387,8 @@ class RepaShader extends HTMLElement {
       const msg = this._gl.getProgramInfoLog(program);
       this.logger.error("Program link error: ", msg);
       // TODO error callback
-      program = null;
       return;
     }
-
-    // TODO sound?
 
     if (this._program) {
       this._gl.deleteProgram(this._program);
@@ -346,6 +409,12 @@ class RepaShader extends HTMLElement {
 
     // textures
     this._textures.forEach((t) => {
+      this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
+      this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
+      t.texElement.forceUpdate();
+    });
+
+    this._textures3d.forEach((t) => {
       this._uniLocation[t.texElement.name] = this._gl.getUniformLocation(this.program, t.texElement.name); // texture
       this._uniLocation[t.texElement.name+'_d'] = this._gl.getUniformLocation(this.program, t.texElement.name+'_d'); // dimensions
       t.texElement.forceUpdate();
@@ -399,13 +468,35 @@ class RepaShader extends HTMLElement {
       // update if needed
       if (t.texElement.shouldUpdate) {
         const format = this._getFormat(t.texElement.format);
+        const internalFormat = this._getFormat(t.texElement.internalFormat);
+        const type = this._getType(t.texElement.dataType);
+
         this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, t.texElement.flipY);
 
-        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, format, t.texElement.width, t.texElement.height, 0, format, this._gl.UNSIGNED_BYTE, t.texElement.update());
+        this._gl.texImage2D(this._gl.TEXTURE_2D, 0, internalFormat, t.texElement.width, t.texElement.height, 0, format, type, t.texElement.update());
       }
 
       this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt);
       this._gl.uniform2fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1]);
+    });
+
+    this._textures3d.forEach((t, i) => {
+      this._gl.activeTexture(this._gl.TEXTURE0 + i + this.mrt + this._textures.length);
+      this._gl.bindTexture(this._gl.TEXTURE_3D, t.texture);
+
+      // update if needed
+      if (t.texElement.shouldUpdate) {
+        const format = this._getFormat(t.texElement.format);
+        const internalFormat = this._getFormat(t.texElement.internalFormat);
+        const type = this._getType(t.texElement.dataType);
+
+        this._gl.pixelStorei(this._gl.UNPACK_FLIP_Y_WEBGL, 0);
+
+        this._gl.texImage3D(this._gl.TEXTURE_3D, 0, internalFormat, t.texElement.width, t.texElement.height, t.texElement.depth, 0, format, type, t.texElement.update());
+      }
+
+      this._gl.uniform1i(this._uniLocation[t.texElement.name], i + this.mrt + this._textures.length);
+      this._gl.uniform3fv(this._uniLocation[t.texElement.name+'_d'], [t.texElement.width || 1, t.texElement.height || 1, t.texElement.depth || 1]);
     });
 
     this._gl.drawArrays(this._gl.TRIANGLE_STRIP, 0, 4);
@@ -564,6 +655,12 @@ void main() {
       return `
   uniform sampler2D ${t.texElement.name};
   uniform vec2 ${t.texElement.name}_d;
+  `;
+    }).join('') +
+    this._textures3d.map(t => {
+      return `
+  uniform sampler3D ${t.texElement.name};
+  uniform vec3 ${t.texElement.name}_d;
   `;
     }).join('');
   }
