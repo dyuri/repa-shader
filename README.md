@@ -73,4 +73,7 @@ More about filtering/wrapping/formats at [MDN](https://developer.mozilla.org/en-
 
 ## Examples
 
+[Demo running in my website](https://horak.hu/posts/repa-shader/)
+
 Check the [demo](demo) folder for more detailed examples.
+
