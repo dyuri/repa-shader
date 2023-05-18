@@ -1,2 +1,10 @@
 - fix mouse, add button, drag
-- jsdoc
+
+- 3d texture
+  - format
+  - inner format
+  - data from external script
+
+- lygia resolve support
+
+- jsdoc typing
